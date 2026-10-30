@@ -1,0 +1,84 @@
+{
+  "name": "Protect main · pull requests and verified CI",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "~DEFAULT_BRANCH"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_linear_history"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_approving_review_count": 0,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": [
+          "squash",
+          "rebase"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "static-validation",
+            "integration_id": 15368
+          },
+          {
+            "context": "script-integration",
+            "integration_id": 15368
+          },
+          {
+            "context": "Published CLI / pull-request regression",
+            "integration_id": 15368
+          },
+          {
+            "context": "Published CLI / csproj",
+            "integration_id": 15368
+          },
+          {
+            "context": "Published CLI / sln",
+            "integration_id": 15368
+          },
+          {
+            "context": "Published CLI / slnx",
+            "integration_id": 15368
+          },
+          {
+            "context": "quality-gates",
+            "integration_id": 15368
+          },
+          {
+            "context": "expected-errors",
+            "integration_id": 15368
+          },
+          {
+            "context": "analyze",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ]
+}
