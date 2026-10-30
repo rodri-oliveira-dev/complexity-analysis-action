@@ -43,3 +43,15 @@ performance optimizations, or precise predictions of execution time.
 Do not add a Marketplace link to the README until the listing is visible. GitHub
 Marketplace publication and Developer Agreement acceptance cannot be represented
 as complete by repository automation.
+
+## Verification after owner approval
+
+After publishing the stable release and maintaining the separate `v1` reference,
+run [Verify published Action release](../.github/workflows/verify-published-release.yml)
+with the exact published version and full approved commit SHA. This read-only
+workflow resolves annotated and lightweight Git tags and rejects mismatches.
+
+Follow [external consumer validation](external-consumer-validation.md) from a
+separate repository, testing full-SHA, `v1.0.0`, and `v1` references. Check
+the Marketplace listing in the GitHub UI independently: the GitHub Release API
+does not prove Marketplace listing visibility or agreement acceptance.
