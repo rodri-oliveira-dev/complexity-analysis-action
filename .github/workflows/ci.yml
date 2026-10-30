@@ -18,6 +18,8 @@ jobs:
     steps:
       # actions/checkout v6.0.2
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
       - name: Run pinned static validation
         shell: bash
         run: bash scripts/static-checks.sh
@@ -28,6 +30,8 @@ jobs:
     steps:
       # actions/checkout v6.0.2
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
       - name: Test validation, execution, failures, outputs, and cancellation
         shell: bash
         run: bash tests/integration/test-action-scripts.sh

@@ -12,6 +12,8 @@ jobs:
     steps:
       # actions/checkout v6.0.2
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
       - id: complexity
         # Replace with a reviewed full commit SHA.
         uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000

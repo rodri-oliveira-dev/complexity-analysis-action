@@ -13,7 +13,7 @@ inputs:
   tool-version:
     description: Exact published ComplexityAnalysis.Tool package version to install.
     required: false
-    default: 1.0.0
+    default: 1.0.1
   output-directory:
     description: Directory within the workspace where JSON and SARIF reports will be written.
     required: false
@@ -278,7 +278,7 @@ runs:
       if: ${{ always() && inputs.upload-sarif == 'true' && steps.validate-sarif.outcome == 'success' }}
       continue-on-error: true
       # github/codeql-action v4.31.9
-      uses: github/codeql-action/upload-sarif@7c9a7896f03bb1f3de14c5663ed46759e27443e0
+      uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7
       with:
         sarif_file: ${{ steps.validate.outputs.sarif-path }}
         checkout_path: ${{ github.workspace }}
@@ -342,3 +342,12 @@ runs:
         COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
         FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
       run: '"$ACTION_PATH/scripts/apply-result.sh"'
+
+    - name: Remove installed CLI
+      if: ${{ always() && steps.install.outputs.tool-directory != '' }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        TOOL_DIRECTORY: ${{ steps.install.outputs.tool-directory }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      run: '"$ACTION_PATH/scripts/cleanup-tool.sh"'

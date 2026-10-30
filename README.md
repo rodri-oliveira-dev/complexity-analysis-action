@@ -5,8 +5,12 @@ solutions. The Action installs and invokes the published
 [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool)
 CLI; it does not copy or reimplement the analysis engine.
 
+The stable Action contract is versioned independently from the CLI and analysis
+engine. The planned first stable release is `v1.0.0`; the exact CLI dependency
+is currently `1.0.1`.
+
 > [!IMPORTANT]
-> This is the Phase 2 prerelease. It supports `ubuntu-latest` only and has not been
+> This is a release candidate. It supports `ubuntu-latest` only and has not been
 > released or published to GitHub Marketplace. Use a reviewed full commit SHA
 > during evaluation. Release aliases such as `@v1` do not exist yet.
 
@@ -37,13 +41,15 @@ jobs:
     steps:
       # actions/checkout v6.0.2
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       # Replace this placeholder with a reviewed full commit SHA.
       - id: complexity
         uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
         with:
           path: My Solution.slnx
-          tool-version: 1.0.0
+          tool-version: 1.0.1
           output-directory: artifacts/complexity-analysis
           include-generated: "false"
           detect-duplicates: "true"
@@ -69,7 +75,7 @@ jobs:
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `path` | Yes | - | Workspace-relative or absolute workspace path to a `.csproj`, `.sln`, or `.slnx` file. |
-| `tool-version` | No | `1.0.0` | Exact published `ComplexityAnalysis.Tool` version. Floating versions are rejected. |
+| `tool-version` | No | `1.0.1` | Exact published `ComplexityAnalysis.Tool` version. Floating versions are rejected. |
 | `output-directory` | No | `complexity-analysis-reports` | Workspace directory for JSON and SARIF reports. |
 | `include-generated` | No | `false` | Passes `--include-generated` when `true`. |
 | `detect-duplicates` | No | `false` | Passes `--detect-duplicates` when `true`. |
@@ -210,7 +216,8 @@ use the two-workflow pattern in
    commit SHA. It never checks out the PR revision.
 3. `publish-pr-report` validates the schema, size, repository, PR number, event
    base/head SHAs, workflow run ID, workflow name, completed-comparison state, counts, and
-   evidence before making an API request. A mismatch stops publication.
+   evidence before making an API request. It also confirms that the PR is still
+   open at the reported head SHA. A mismatch stops publication.
 
 Artifact report text is still untrusted. Markdown values are HTML-escaped,
 table delimiters and line breaks are neutralized, HTML comment injection is
@@ -318,7 +325,7 @@ sandboxing remain the runner owner's responsibility.
   project evaluation. They are passed as arguments and never evaluated as code.
 
 The CLI supports `.csproj`, `.sln`, and `.slnx` inputs and requires .NET 10.
-Version `1.0.0` is the published package version exercised by the end-to-end
+Version `1.0.1` is the published package version exercised by the end-to-end
 suite. Comparison currently assumes the configured entry-point path exists in
 both revisions; an entry-point rename is unavailable rather than guessed.
 Member/source-file renames, project additions/deletions, multiple target
@@ -326,7 +333,34 @@ frameworks, generated-code settings, and evidence compatibility are left to the
 CLI snapshot matcher. The Action does not upload comparison SARIF, infer
 alternate entry points, support non-Linux runners, or provide a process/network
 sandbox. Comment discovery follows every GitHub API page before creating a new
-report, so an older bot report remains idempotent on busy pull requests.
+report, and publication refuses a report whose head SHA is no longer the open
+pull request head.
+
+## Compatibility and versioning
+
+Only Ubuntu GitHub-hosted runners are supported in `v1`. Linux tests cover
+`.csproj`, `.sln`, `.slnx`, paths containing spaces, quality gates, JSON and
+SARIF, snapshots, regression comparison, PR report generation, installation
+errors, and cancellation. Windows and macOS have not passed equivalent
+end-to-end suites and are explicitly unsupported.
+
+Action releases follow Semantic Versioning independently of NuGet packages:
+
+- PATCH: backward-compatible fixes and security updates.
+- MINOR: backward-compatible functionality.
+- MAJOR: a change to inputs/defaults, outputs, runner support, quality-gate or
+  reporting semantics, or documented security requirements.
+
+Use immutable `vX.Y.Z` release tags or a reviewed full commit SHA. The movable
+`v1` compatibility reference is advanced only after a compatible immutable
+release is verified; it is not itself a GitHub release. See
+[`docs/maintainers.md`](docs/maintainers.md) and
+[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
+
+Release publication is never triggered by a push. The manually dispatched
+**Release readiness** workflow validates an exact version and commit, confirms
+tag uniqueness and the published CLI, reruns required checks, and creates a
+deterministic manifest and release notes without creating a tag or release.
 
 ## Troubleshooting
 

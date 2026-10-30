@@ -47,10 +47,14 @@ python3 -m compileall -q scripts tests
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 tests/static/check-action-pins.py action.yml .github/workflows/*.yml examples/*.yml
 "$tool_root/actionlint" -color
-"$tool_root/actionlint" -color examples/consumer-workflow.yml
+"$tool_root/actionlint" -color examples/*.yml
 "$action_validator" action.yml
 "$action_validator" publish-pr-report/action.yml
 "$action_validator" .github/workflows/ci.yml
 "$action_validator" .github/workflows/e2e.yml
+"$action_validator" .github/workflows/codeql.yml
+"$action_validator" .github/workflows/release-readiness.yml
 "$action_validator" examples/consumer-workflow.yml
+"$action_validator" examples/secure-pr-analysis.yml
+"$action_validator" examples/secure-pr-publish.yml
 git diff --check

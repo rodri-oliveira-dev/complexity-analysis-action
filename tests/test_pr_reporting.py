@@ -83,10 +83,12 @@ def envelope(regressions: list[dict] | None = None, *, fork: bool = False) -> di
 
 
 class FakeClient:
-    def __init__(self, comments=None, *, pages=None, fail=False):
+    def __init__(self, comments=None, *, pages=None, fail=False, head_sha=SHA_B, state="open"):
         self.comments = comments or []
         self.pages = pages
         self.fail = fail
+        self.head_sha = head_sha
+        self.state = state
         self.calls = []
 
     def request(self, method, path, payload=None):
@@ -94,6 +96,8 @@ class FakeClient:
         if self.fail:
             raise ReportError("simulated GitHub API failure")
         if method == "GET":
+            if "/pulls/" in path:
+                return {"state": self.state, "head": {"sha": self.head_sha}}
             if self.pages is not None:
                 page = int(path.rsplit("=", 1)[1])
                 return self.pages[page - 1] if page <= len(self.pages) else []
@@ -187,7 +191,7 @@ class PublicationTests(unittest.TestCase):
     def test_first_comment_creation(self):
         client = FakeClient()
         self.assertEqual(publish(client, validate_envelope(envelope())), "created")
-        self.assertEqual([call[0] for call in client.calls], ["GET", "POST"])
+        self.assertEqual([call[0] for call in client.calls], ["GET", "GET", "POST"])
 
     def test_updates_existing_owned_comment_and_repeated_runs(self):
         owned = {"id": 10, "body": MARKER + " old", "user": {"login": "github-actions[bot]", "type": "Bot"}}
@@ -213,7 +217,13 @@ class PublicationTests(unittest.TestCase):
         owned = {"id": 101, "body": MARKER, "user": {"login": "github-actions[bot]", "type": "Bot"}}
         client = FakeClient(pages=[first_page, [owned]])
         self.assertEqual(publish(client, validate_envelope(envelope())), "updated")
-        self.assertEqual([call[0] for call in client.calls], ["GET", "GET", "PATCH"])
+        self.assertEqual([call[0] for call in client.calls], ["GET", "GET", "GET", "PATCH"])
+
+    def test_refuses_stale_or_closed_pull_request(self):
+        with self.assertRaisesRegex(ReportError, "head changed"):
+            publish(FakeClient(head_sha=SHA_A), validate_envelope(envelope()))
+        with self.assertRaisesRegex(ReportError, "no longer open"):
+            publish(FakeClient(state="closed"), validate_envelope(envelope()))
 
     def test_api_failure(self):
         with self.assertRaises(ReportError):

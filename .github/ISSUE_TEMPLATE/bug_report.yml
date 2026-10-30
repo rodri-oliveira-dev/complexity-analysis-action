@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible Action defect (use private reporting for security issues).
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not disclose vulnerabilities here; follow SECURITY.md.
+  - type: input
+    id: action-ref
+    attributes:
+      label: Action version or commit
+    validations:
+      required: true
+  - type: input
+    id: runner
+    attributes:
+      label: Runner image
+      placeholder: ubuntu-latest
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal workflow and reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove tokens, secrets, and private source content.
