@@ -55,6 +55,7 @@ python3 scripts/validate-distribution.py
 "$action_validator" .github/workflows/e2e.yml
 "$action_validator" .github/workflows/codeql.yml
 "$action_validator" .github/workflows/release-readiness.yml
+"$action_validator" .github/workflows/verify-published-release.yml
 "$action_validator" examples/consumer-workflow.yml
 "$action_validator" examples/basic-analysis.yml
 "$action_validator" examples/non-blocking-analysis.yml
