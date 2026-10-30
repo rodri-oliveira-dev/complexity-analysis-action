@@ -14,7 +14,9 @@
 - [ ] A draft GitHub release is prepared with the immutable `vX.Y.Z` tag.
 - [ ] Publication receives explicit maintainer approval.
 - [ ] After publication, advance mutable `vX` (and optional `vX.Y`) only to a compatible release.
-- [ ] Verify consumption by both `vX.Y.Z` and the immutable commit SHA.
+- [ ] Run read-only post-publication verification against the approved commit.
+- [ ] Verify external consumption of `vX.Y.Z`, `vX`, and the full SHA; record consumer workflow URLs.
+- [ ] Confirm Marketplace listing visibility independently in the owner's GitHub UI.
 - [ ] Verify the Marketplace listing before adding its URL to public documentation.
 
 Never force-update a release-specific tag. Do not create a GitHub release for
