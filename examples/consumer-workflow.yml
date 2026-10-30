@@ -1,0 +1,32 @@
+name: Complexity Analysis
+
+on:
+  pull_request:
+
+jobs:
+  complexity-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required only when upload-sarif is true.
+      security-events: write
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      # Replace the zero SHA with a reviewed commit. No release tag exists yet.
+      - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+        with:
+          path: MySolution.slnx
+          tool-version: 1.0.0
+          output-directory: artifacts/complexity-analysis
+          include-generated: "false"
+          detect-duplicates: "false"
+          max-complexity: n_log_n
+          max-cyclomatic-complexity: "15"
+          max-cognitive-complexity: "20"
+          max-nesting-depth: "4"
+          max-method-nloc: "80"
+          max-duplicate-rate: "5"
+          fail-on-quality-gate: "true"
+          upload-sarif: "true"

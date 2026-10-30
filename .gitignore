@@ -1,0 +1,7 @@
+artifacts/
+complexity-analysis-reports/
+__pycache__/
+*.py[cod]
+**/bin/
+**/obj/
+.tools/
