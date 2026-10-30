@@ -1,0 +1,19 @@
+name: Complexity Analysis
+
+on:
+  pull_request:
+
+jobs:
+  complexity-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Future release reference: v1 does not exist until the first release.
+      - uses: rodri-oliveira-dev/complexity-analysis-action@v1
+        with:
+          path: MySolution.slnx
+          tool-version: 1.0.0
+          output-directory: artifacts/complexity-analysis
+          include-generated: "false"
+          detect-duplicates: "false"

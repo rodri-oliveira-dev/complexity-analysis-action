@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  action-smoke-test:
+    name: Analyze ${{ matrix.entry-kind }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - entry-kind: csproj
+            entry-path: tests/fixtures/Sample Project/Sample Project.csproj
+          - entry-kind: sln
+            entry-path: tests/fixtures/Sample Project/Sample Project.sln
+          - entry-kind: slnx
+            entry-path: tests/fixtures/Sample Project/Sample Project.slnx
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run local Action
+        id: complexity
+        uses: ./
+        with:
+          path: ${{ matrix.entry-path }}
+          tool-version: 1.0.0
+          output-directory: artifacts/${{ matrix.entry-kind }} report
+          include-generated: "false"
+          detect-duplicates: "true"
+
+      - name: Verify outputs
+        shell: bash
+        env:
+          REPORT_PATH: ${{ steps.complexity.outputs.report-path }}
+          ANALYSIS_STATUS: ${{ steps.complexity.outputs.analysis-status }}
+          TOOL_VERSION: ${{ steps.complexity.outputs.tool-version }}
+        run: |
+          test -s "$REPORT_PATH"
+          test "$ANALYSIS_STATUS" = "success"
+          test "$TOOL_VERSION" = "1.0.0"
+
+  static-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Bash syntax
+        shell: bash
+        run: bash -n scripts/*.sh
+      - name: Run ShellCheck
+        shell: bash
+        run: shellcheck scripts/*.sh
+      - name: Run actionlint
+        shell: bash
+        run: |
+          version=1.7.7
+          archive="actionlint_${version}_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar --extract --gzip --file "$RUNNER_TEMP/$archive" --directory "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint"
