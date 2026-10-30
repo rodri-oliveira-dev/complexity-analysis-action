@@ -1,0 +1,29 @@
+name: Complexity PR analysis
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - id: complexity
+        # Replace with a reviewed full commit SHA.
+        uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+        with:
+          path: MySolution.slnx
+          compare-with-base: "true"
+          comment-on-pr: "false"
+      # actions/upload-artifact v5.0.0
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: ${{ always() && (steps.complexity.outputs.comparison-status == 'no-regressions' || steps.complexity.outputs.comparison-status == 'regressions-detected') }}
+        with:
+          name: complexity-pr-report
+          path: ${{ steps.complexity.outputs.pr-report-path }}
+          if-no-files-found: error
+          retention-days: 1

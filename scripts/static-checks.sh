@@ -49,6 +49,7 @@ python3 tests/static/check-action-pins.py action.yml .github/workflows/*.yml exa
 "$tool_root/actionlint" -color
 "$tool_root/actionlint" -color examples/consumer-workflow.yml
 "$action_validator" action.yml
+"$action_validator" publish-pr-report/action.yml
 "$action_validator" .github/workflows/ci.yml
 "$action_validator" .github/workflows/e2e.yml
 "$action_validator" examples/consumer-workflow.yml

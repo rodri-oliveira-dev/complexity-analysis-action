@@ -5,6 +5,8 @@ import os
 from html import escape
 from pathlib import Path
 
+from pr_reporting import ReportError, load_json, validate_comparison
+
 
 def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
@@ -41,6 +43,10 @@ def overall_status() -> str:
         return "Failed: SARIF did not pass Code Scanning validation"
     if env("UPLOAD_SARIF") == "true" and env("UPLOAD_OUTCOME") == "failure":
         return "Failed: SARIF upload was rejected"
+    if env("COMPARISON_STATUS") in ("unavailable", "failed"):
+        return "Failed: requested comparison unavailable"
+    if env("COMPARISON_STATUS") == "regressions-detected" and env("FAIL_ON_REGRESSION") == "true":
+        return "Failed: complexity regression"
     if code == "0":
         return "Succeeded"
     if code == "2":
@@ -72,6 +78,15 @@ def quality_gates(report_path: str) -> list[dict[str, object]]:
         return []
 
 
+def comparison_data() -> tuple[list[dict[str, object]], dict[str, int]]:
+    if env("COMPARISON_STATUS") not in ("no-regressions", "regressions-detected"):
+        return [], {}
+    try:
+        return validate_comparison(load_json(Path(env("COMPARISON_REPORT_PATH"))))
+    except ReportError:
+        return [], {}
+
+
 def main() -> None:
     summary_path = env("GITHUB_STEP_SUMMARY")
     if not summary_path:
@@ -81,6 +96,9 @@ def main() -> None:
     gates = quality_gates(env("REPORT_PATH"))
     failed = sum(1 for gate in gates if gate.get("Passed") is False)
     passed = sum(1 for gate in gates if gate.get("Passed") is True)
+    findings, comparison_counts = comparison_data()
+    regressions = [finding for finding in findings if finding["Classification"] == "regression"]
+    base_revision = "Provided snapshot" if env("BASE_REVISION_KIND") == "snapshot" else (env("BASE_REVISION") or "Unavailable")
 
     lines = [
         "# Complexity Analysis",
@@ -91,6 +109,13 @@ def main() -> None:
         f"| CLI version | `{cell(env('TOOL_VERSION', 'unknown'))}` |",
         f"| Analysis status | {cell(env('ANALYSIS_STATUS', 'unknown'))} |",
         f"| Quality-gate status | {cell(env('QUALITY_GATE_STATUS', 'unknown'))} |",
+        f"| Comparison status | {cell(env('COMPARISON_STATUS', 'not-requested'))} |",
+        f"| Comparison base | `{cell(base_revision)}` |",
+        f"| Head revision | `{cell(env('HEAD_REVISION') or 'Unavailable')}` |",
+        f"| Proven regressions | {cell(env('REGRESSION_COUNT', '0'))} |",
+        f"| Improvements | {comparison_counts.get('improvement', 0)} |",
+        f"| Unchanged members | {comparison_counts.get('equivalent', 0)} |",
+        f"| Incomparable members | {comparison_counts.get('incomparable', 0) + comparison_counts.get('ambiguous', 0)} |",
         f"| Overall execution | {cell(overall_status())} |",
         "",
         "## Configured thresholds",
@@ -127,6 +152,37 @@ def main() -> None:
     else:
         lines.append("No quality-gate results are available.")
 
+    lines.extend(("", "## Regression comparison", ""))
+    if findings:
+        limitations = (
+            comparison_counts.get("incomparable", 0)
+            + comparison_counts.get("ambiguous", 0)
+            + comparison_counts.get("added", 0)
+            + comparison_counts.get("removed", 0)
+        )
+        lines.append(
+            f"Proven regressions: **{len(regressions)}** - Improvements: **{comparison_counts.get('improvement', 0)}** "
+            f"- Unchanged: **{comparison_counts.get('equivalent', 0)}** - Limited comparisons: **{limitations}**"
+        )
+        if regressions:
+            lines.extend(("", "| File | Member | Previous | Current | Evidence |", "| --- | --- | ---: | ---: | --- |"))
+            for finding in regressions[:20]:
+                location = finding.get("FilePath", "Unavailable")
+                if finding.get("StartLine"):
+                    location = f"{location}:{finding['StartLine']}"
+                lines.append(
+                    f"| {cell(location)} | {cell(finding['StableId'])} | {cell(finding['Before'])} | "
+                    f"{cell(finding['After'])} | {cell(finding['Reason'])} |"
+                )
+            if len(regressions) > 20:
+                lines.extend(("", f"Showing 20 of {len(regressions)} regressions. See comparison JSON for all findings."))
+        if limitations:
+            lines.extend(("", "Added, removed, ambiguous, and incomparable members are limitations, not proven regressions."))
+    elif env("COMPARISON_STATUS") == "not-requested":
+        lines.append("Baseline comparison was not requested.")
+    else:
+        lines.append("No validated comparison details are available; no regression conclusion is inferred.")
+
     upload_status = env("UPLOAD_OUTCOME", "not requested") if env("UPLOAD_SARIF") == "true" else "not requested"
     lines.extend(
         (
@@ -136,6 +192,11 @@ def main() -> None:
             f"- JSON: `{cell(display_path(env('REPORT_PATH')))}`",
             f"- SARIF 2.1.0: `{cell(display_path(env('SARIF_PATH')))}`",
             f"- Code Scanning upload: {cell(upload_status)}",
+            f"- Baseline snapshot: `{cell(display_path(env('BASELINE_REPORT_PATH')))}`",
+            f"- Current snapshot: `{cell(display_path(env('CURRENT_REPORT_PATH')))}`",
+            f"- Comparison JSON: `{cell(display_path(env('COMPARISON_REPORT_PATH')))}`",
+            f"- Structured PR report: `{cell(display_path(env('PR_REPORT_PATH')))}` ({cell(env('PR_REPORT_OUTCOME', 'not generated'))})",
+            f"- PR comment: {cell(env('COMMENT_OUTCOME', 'not requested') if env('COMMENT_ON_PR') == 'true' else 'not requested')}",
             "",
         )
     )

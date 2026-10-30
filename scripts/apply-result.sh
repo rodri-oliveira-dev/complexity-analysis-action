@@ -21,6 +21,28 @@ case "$ANALYSIS_EXIT_CODE" in
     ;;
 esac
 
+if [[ "${COMPARISON_REQUESTED:-false}" == "true" ]]; then
+  case "${COMPARISON_STATUS:-}" in
+    no-regressions)
+      ;;
+    regressions-detected)
+      if [[ "${FAIL_ON_REGRESSION:-false}" == "true" ]]; then
+        printf '::error title=Complexity regression gate failed::The CLI reported one or more proven regressions.\n'
+        exit 2
+      fi
+      printf 'Complexity regressions are allowed by fail-on-regression=false.\n'
+      ;;
+    unavailable|failed)
+      printf '::error title=Complexity comparison failed::The requested comparison did not complete; no regression decision was made.\n'
+      exit 1
+      ;;
+    *)
+      printf '::error title=Complexity comparison failed::No recognized comparison result was available.\n'
+      exit 1
+      ;;
+  esac
+fi
+
 if [[ "$UPLOAD_SARIF" == "true" ]]; then
   if [[ "$SARIF_VALIDATION_OUTCOME" != "success" ]]; then
     printf '::error title=Complexity Analysis SARIF upload blocked::The SARIF report did not pass pre-upload validation.\n'

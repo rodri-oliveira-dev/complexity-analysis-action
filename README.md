@@ -6,7 +6,7 @@ solutions. The Action installs and invokes the published
 CLI; it does not copy or reimplement the analysis engine.
 
 > [!IMPORTANT]
-> This is the Phase 1 MVP. It supports `ubuntu-latest` only and has not been
+> This is the Phase 2 prerelease. It supports `ubuntu-latest` only and has not been
 > released or published to GitHub Marketplace. Use a reviewed full commit SHA
 > during evaluation. Release aliases such as `@v1` do not exist yet.
 
@@ -14,9 +14,12 @@ CLI; it does not copy or reimplement the analysis engine.
 
 - A GitHub-hosted or self-hosted Ubuntu runner with Bash, Python 3, and network
   access to NuGet.org. The Action installs the pinned .NET 10 SDK itself.
-- A `.csproj`, `.sln`, or `.slnx` entry point inside the checked-out workspace.
-- `contents: read` is the only workflow permission required for local reports.
-  SARIF upload additionally requires `security-events: write`.
+- A Git checkout containing a `.csproj`, `.sln`, or `.slnx` entry point. Git is
+  required when baseline comparison is enabled.
+- `contents: read` is the only workflow permission required for local reports
+  and regression checks. SARIF upload additionally requires
+  `security-events: write`; direct PR comments additionally require
+  `pull-requests: write`.
 
 ## Usage
 
@@ -50,6 +53,9 @@ jobs:
           max-nesting-depth: "4"
           max-method-nloc: "80"
           max-duplicate-rate: "5"
+          compare-with-base: "true"
+          fail-on-regression: "true"
+          comment-on-pr: "false"
 
       # actions/upload-artifact v5.0.0
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
@@ -75,6 +81,12 @@ jobs:
 | `max-duplicate-rate` | No | unset | Non-negative duplicate percentage; also enables duplicate detection. |
 | `fail-on-quality-gate` | No | `true` | Return a failing Action result for CLI exit code `2`. Has no effect when no gate is configured. |
 | `upload-sarif` | No | `false` | Validate and upload SARIF to GitHub Code Scanning. |
+| `compare-with-base` | No | `false` | Opt in to automatic baseline generation. In a PR, uses the immutable event base and head SHAs. |
+| `base-ref` | No | unset | Explicit commit or safe Git ref for automatic baseline generation. Requires `compare-with-base`; mutually exclusive with `baseline-path`. |
+| `fail-on-regression` | No | `false` | Fail only when the CLI proves at least one regression. Requires a comparison source. |
+| `baseline-path` | No | unset | Existing `complexity-snapshot/1.0` JSON inside the workspace. Supplying it enables comparison and replaces Git baseline generation. |
+| `comparison-output` | No | `<output-directory>/comparison.json` | Workspace JSON path for comparison results. |
+| `comment-on-pr` | No | `false` | Create or update one bot-authored PR report after a completed comparison. Requires a `pull_request` event and `pull-requests: write`. |
 
 Boolean inputs accept only the lowercase strings `true` and `false`.
 Thresholds are never enabled implicitly. Supported Big-O values are `constant`,
@@ -90,12 +102,128 @@ Thresholds are never enabled implicitly. Supported Big-O values are `constant`,
 | `analysis-status` | CLI execution result: `success`, `failed`, or `canceled`. A quality-gate violation is still a successful analysis. |
 | `quality-gate-status` | `not-configured`, `passed`, `failed`, or `unknown`. |
 | `tool-version` | Exact CLI package version used. |
+| `baseline-report-path` | Absolute path reserved for the preserved/generated `baseline.json`. |
+| `current-report-path` | Absolute path reserved for the generated `current.json`. |
+| `comparison-report-path` | Absolute path to `comparison.json`. |
+| `regression-count` | Count of CLI findings classified exactly as `regression`; `0` when comparison does not complete. |
+| `comparison-status` | `not-requested`, `no-regressions`, `regressions-detected`, `unavailable`, or `failed`. |
+| `pr-report-path` | Absolute path reserved for validated `pr-report.json`; generated for completed PR comparisons even when commenting is disabled. |
 
-Both reports are generated before a configured quality-gate failure is applied.
-The Job Summary shows the analyzed entry point, CLI version, configured
-thresholds, results reported by the CLI, overall status, and report paths. To
+Reports are generated before a configured quality-gate or regression failure is
+applied. The Job Summary shows base/head revisions, proven regressions,
+improvements, reliably equivalent members, comparison limitations,
+quality-gate state, overall status, and report paths whether or not commenting
+is enabled. To
 retain the files after the job, upload either output with
 `actions/upload-artifact` as shown above.
+
+## Reporting modes
+
+The capabilities are independently opt-in:
+
+| Mode | Configuration | Required permissions | Result |
+| --- | --- | --- | --- |
+| Analysis only | Defaults, optionally with quality gates | `contents: read` | JSON, SARIF, and Job Summary; no comment. |
+| Regression check | `compare-with-base: "true"`, optionally `fail-on-regression: "true"` | `contents: read` | Snapshots, comparison reports, summary, and optional failure; no write permission. |
+| Direct PR feedback | Comparison plus `comment-on-pr: "true"` | `contents: read`, `pull-requests: write` | The same reports plus one idempotently updated comment. |
+| Isolated fork feedback | Read-only analysis workflow plus `workflow_run` publisher | Analysis: `contents: read`; publisher: `actions: read`, `pull-requests: write` | The publisher consumes only the validated report artifact and never checks out or executes PR code. |
+
+### Direct PR comment
+
+Use direct comments for trusted same-repository PRs. Users who do not request a
+comment do not need `pull-requests: write`.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    with:
+      persist-credentials: false
+  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+    with:
+      path: MySolution.slnx
+      compare-with-base: "true"
+      fail-on-regression: "false"
+      comment-on-pr: "true"
+```
+
+The Markdown starts with a stable hidden marker. Publication uses only
+`github.token`, paginates the PR comments, and updates only a marked comment owned by
+the canonical `github-actions[bot]` identity. A copied marker in another user or
+bot's comment is ignored. The comment displays at most ten regressions and points to the
+workflow run and available report paths; the full deterministic result remains
+in `comparison.json`. Repeated runs update the same comment instead of creating
+notification spam.
+
+Only a completed, validated comparison is published as findings. Execution,
+configuration, metadata-validation, and API failures are emitted as workflow
+errors or warnings and remain visibly separate from regression counts; the
+Action never turns a missing report into "no regressions."
+
+## Pull-request baselines
+
+Comparison is opt-in. For a `pull_request` event, the Action reads the base
+repository, base commit SHA, head repository, and head commit SHA from the event
+payload. It verifies the identities, resolves only those immutable commits, and
+fetches the exact missing objects (or the matching base/PR ref) for shallow and
+fork checkouts. A fallback is accepted only when the expected SHA becomes
+available; the Action never substitutes another commit.
+
+The revisions are materialized in temporary detached worktrees, copied without
+`.git`, and analyzed with identical snapshot options. The published CLI remains
+the sole comparison engine and is invoked with `--fail-on-regression`. Successful
+comparison creates:
+
+- `baseline.json` — baseline `complexity-snapshot/1.0` report.
+- `current.json` — current/head snapshot.
+- `comparison.json` — CLI `complexity-comparison/1.0` report.
+- `comparison.sarif` — local comparison SARIF (not uploaded automatically).
+
+Supplying `baseline-path` copies that snapshot to `baseline.json`. Outside a PR,
+automatic generation requires `base-ref`; the current revision is checked-out
+`HEAD`. If an entry point is absent, a commit is inaccessible, or the CLI cannot
+produce complete compatible report data, the status is `unavailable` or
+`failed` and the Action fails without claiming “no regression.” Unknown or
+incomparable complexity, added/removed members, and ambiguous identities stay
+non-regressions according to the CLI and remain visible in `comparison.json`.
+Reports identify the resolved commit actually used by `base-ref`. When
+`baseline-path` is supplied, the comparison base is labeled "Provided snapshot"
+instead of implying that the snapshot came from the PR event's base commit.
+
+### Secure publication for fork PRs
+
+Fork `pull_request` workflows normally receive a read-only token, so direct
+commenting reports a warning and leaves `pr-report.json` available. Do not grant
+write permissions or secrets to that analysis job. For comments on fork PRs,
+use the two-workflow pattern in
+[`examples/secure-pr-analysis.yml`](examples/secure-pr-analysis.yml) and
+[`examples/secure-pr-publish.yml`](examples/secure-pr-publish.yml):
+
+1. The `pull_request` workflow analyzes with `contents: read`, keeps
+   `comment-on-pr: "false"`, and uploads only `pr-report.json` under a fixed
+   artifact name.
+2. A `workflow_run` job downloads that exact artifact from the exact triggering
+   run and invokes the publication-only companion action at a reviewed full
+   commit SHA. It never checks out the PR revision.
+3. `publish-pr-report` validates the schema, size, repository, PR number, event
+   base/head SHAs, workflow run ID, workflow name, completed-comparison state, counts, and
+   evidence before making an API request. A mismatch stops publication.
+
+Artifact report text is still untrusted. Markdown values are HTML-escaped,
+table delimiters and line breaks are neutralized, HTML comment injection is
+prevented, details are capped, and repository/API path components are encoded.
+The publisher can only create or edit an issue comment on the validated PR. It
+does not execute the artifact, invoke the analysis CLI, restore packages, or
+load project files.
+
+Never run the main analysis Action under `pull_request_target`: loading a .NET
+project may execute repository-controlled MSBuild logic. The Action rejects
+that event. A privileged `workflow_run` publisher is safe only when it consumes
+the bounded structured report and trusted event metadata as shown; do not add a
+checkout of the PR head or shell commands derived from artifact content.
 
 ## Quality-gate behavior
 
@@ -111,6 +239,19 @@ thresholds itself:
 
 High complexity alone does not fail the Action. The CLI can return `2` only
 when at least one threshold was explicitly configured.
+
+Absolute quality gates and baseline regressions are independent. The Phase 1
+report retains thresholds and `fail-on-quality-gate`; comparison snapshots omit
+thresholds and `fail-on-regression` applies only to proven CLI regression
+findings. A project can exceed a threshold without adding a regression, or add
+a regression while remaining below every threshold.
+
+An absolute quality gate compares the current report to a configured maximum
+(for example, cyclomatic complexity 15). Regression detection compares the
+same member across baseline and head using the CLI's compatible evidence and
+ordering rules. Missing, unknown, ambiguous, or incompatible evidence is a
+comparison limitation and never becomes a proven regression or a fabricated
+metric.
 
 ## Optional Code Scanning upload
 
@@ -139,8 +280,9 @@ the local reports available. See GitHub's
 for repository availability and ingestion limits.
 
 For pull requests from forks, GitHub may restrict write permissions granted to
-`GITHUB_TOKEN`; keep `upload-sarif` disabled for an untrusted fork workflow or
-perform the upload in an appropriately secured workflow.
+`GITHUB_TOKEN`; keep `upload-sarif` disabled for an untrusted fork workflow.
+The PR-report artifact handoff is intentionally limited to comments and does
+not grant the publisher `security-events: write`.
 
 Never use `pull_request_target` to check out and analyze pull-request code. The
 CLI loads project/solution content through MSBuild, so repository-controlled
@@ -148,6 +290,14 @@ project and target files must be treated as untrusted executable input. Run with
 a read-only token, no secrets, and no write-capable credentials. The Action
 isolates normal MSBuild, build, and NuGet state under `RUNNER_TEMP`, but that is
 not a sandbox for malicious project content.
+
+The Action rejects `pull_request_target`. Snapshot evaluation receives neither
+the checkout's `.git` metadata nor the workflow environment: the CLI runs with
+a minimal runtime allowlist and isolated HOME, temp, NuGet, and MSBuild state.
+Keep permissions at `contents: read`, do not pass secrets through project
+properties, and do not place credentials in checkout files. Project loading can
+execute repository-controlled MSBuild imports and targets; process and network
+sandboxing remain the runner owner's responsibility.
 
 ## Behavior and safety
 
@@ -164,12 +314,19 @@ not a sandbox for malicious project content.
   installation errors, and CLI failures produce explicit workflow errors.
 - Reports are generated by the CLI as JSON and SARIF 2.1.0; the Action does not
   reproduce complexity calculations or quality-gate evaluation.
+- Git refs use a conservative character set and resolve to commit SHAs before
+  project evaluation. They are passed as arguments and never evaluated as code.
 
 The CLI supports `.csproj`, `.sln`, and `.slnx` inputs and requires .NET 10.
 Version `1.0.0` is the published package version exercised by the end-to-end
-suite. The MVP intentionally does not include trend analysis, baselines,
-annotations beyond the CLI's reports, multi-platform runners, release
-automation, Marketplace publication, or website changes.
+suite. Comparison currently assumes the configured entry-point path exists in
+both revisions; an entry-point rename is unavailable rather than guessed.
+Member/source-file renames, project additions/deletions, multiple target
+frameworks, generated-code settings, and evidence compatibility are left to the
+CLI snapshot matcher. The Action does not upload comparison SARIF, infer
+alternate entry points, support non-Linux runners, or provide a process/network
+sandbox. Comment discovery follows every GitHub API page before creating a new
+report, so an older bot report remains idempotent on busy pull requests.
 
 ## Troubleshooting
 
@@ -183,6 +340,21 @@ automation, Marketplace publication, or website changes.
 - **Quality gate failed:** inspect the JSON report and job summary. Set
   `fail-on-quality-gate: "false"` only when violations should be reported without
   failing the job.
+- **Comparison unavailable:** inspect the logged immutable SHAs and confirm the
+  checkout's `origin` can read the base repository. For custom history, provide
+  `base-ref` or a valid snapshot through `baseline-path`.
+- **Unknown/incomparable evidence did not fail:** expected; only CLI findings
+  classified as `regression` can fail the regression gate.
+- **PR comment was not published:** confirm the event is `pull_request`,
+  comparison completed, `comment-on-pr` is `true`, and the job has
+  `pull-requests: write`. Fork tokens are expected to be read-only; use the
+  isolated `workflow_run` examples instead of weakening the analysis job.
+- **A repeated run created a second comment:** the authenticated credential must
+  be the same bot identity. The publisher deliberately refuses to edit a
+  marked comment owned by another identity.
+- **Artifact publication was rejected:** confirm the artifact came from the
+  exact `workflow_run` ID/name and that its repository, PR number, and head SHA
+  still match the trusted event. Do not bypass these checks.
 - **SARIF upload failed:** verify `security-events: write`, repository Code
   Scanning availability, and fork restrictions. Local JSON and SARIF files are
   still retained for later artifact upload.
@@ -196,7 +368,10 @@ From a Bash environment on Ubuntu:
 ```bash
 bash scripts/static-checks.sh
 bash tests/integration/test-action-scripts.sh
+bash tests/integration/test-comparison-scripts.sh
+bash tests/integration/test-pr-reporting-scripts.sh
 bash tests/integration/test-published-cli.sh
+bash tests/integration/test-pr-regression-e2e.sh
 ```
 
 The static script downloads exact actionlint, action-validator, and ShellCheck

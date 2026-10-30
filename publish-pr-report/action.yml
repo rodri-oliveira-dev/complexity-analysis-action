@@ -1,0 +1,44 @@
+name: Publish Complexity PR Report
+description: Validate and publish a previously generated Complexity Analysis PR report without executing project code.
+author: Rodrigo de Oliveira
+
+inputs:
+  report-path:
+    description: Path to the downloaded pr-report.json artifact.
+    required: true
+  expected-repository:
+    description: Repository from the trusted workflow_run context (owner/name).
+    required: true
+  expected-head-sha:
+    description: Pull request head SHA from the trusted workflow_run context.
+    required: true
+  expected-base-sha:
+    description: Pull request event base SHA from the trusted workflow_run context.
+    required: true
+  expected-pr-number:
+    description: Pull request number from the trusted workflow_run context.
+    required: true
+  expected-run-id:
+    description: Analysis workflow run ID that produced the artifact.
+    required: true
+  expected-workflow-name:
+    description: Exact analysis workflow name from the trusted workflow_run context.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate artifact and publish Pull Request report
+      shell: bash
+      env:
+        PR_REPORT_PATH: ${{ inputs.report-path }}
+        EXPECTED_REPOSITORY: ${{ inputs.expected-repository }}
+        EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+        EXPECTED_BASE_SHA: ${{ inputs.expected-base-sha }}
+        EXPECTED_PR_NUMBER: ${{ inputs.expected-pr-number }}
+        EXPECTED_RUN_ID: ${{ inputs.expected-run-id }}
+        EXPECTED_WORKFLOW_NAME: ${{ inputs.expected-workflow-name }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_TOKEN: ${{ github.token }}
+        ACTION_ROOT: ${{ github.action_path }}/..
+      run: 'python3 "$ACTION_ROOT/scripts/publish-pr-comment.py"'

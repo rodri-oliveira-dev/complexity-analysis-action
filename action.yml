@@ -58,6 +58,30 @@ inputs:
     description: Upload the generated SARIF report to GitHub Code Scanning.
     required: false
     default: "false"
+  compare-with-base:
+    description: Generate snapshots and compare the current revision with the PR base or base-ref.
+    required: false
+    default: "false"
+  base-ref:
+    description: Optional explicit Git commit or ref to use instead of the pull request base revision.
+    required: false
+    default: ""
+  fail-on-regression:
+    description: Fail the Action when the CLI reports one or more proven regressions.
+    required: false
+    default: "false"
+  baseline-path:
+    description: Optional existing complexity snapshot JSON to use instead of generating a baseline revision snapshot.
+    required: false
+    default: ""
+  comparison-output:
+    description: Optional comparison JSON path within the workspace. Defaults to comparison.json in output-directory.
+    required: false
+    default: ""
+  comment-on-pr:
+    description: "Publish or update one bot-authored Pull Request summary. Requires pull-requests: write."
+    required: false
+    default: "false"
 
 outputs:
   report-path:
@@ -75,6 +99,24 @@ outputs:
   tool-version:
     description: Exact ComplexityAnalysis.Tool version used by the Action.
     value: ${{ steps.validate.outputs.tool-version }}
+  baseline-report-path:
+    description: Absolute path reserved for the preserved baseline snapshot.
+    value: ${{ steps.validate.outputs.baseline-report-path }}
+  current-report-path:
+    description: Absolute path reserved for the current revision snapshot.
+    value: ${{ steps.validate.outputs.current-report-path }}
+  comparison-report-path:
+    description: Absolute path reserved for the JSON comparison report.
+    value: ${{ steps.validate.outputs.comparison-report-path }}
+  regression-count:
+    description: Number of proven regression findings; zero when comparison was not completed.
+    value: ${{ steps.compare.outputs.regression-count }}
+  comparison-status:
+    description: Comparison result (not-requested, no-regressions, regressions-detected, unavailable, or failed).
+    value: ${{ steps.compare.outputs.comparison-status }}
+  pr-report-path:
+    description: Absolute path to the validated structured Pull Request report; populated after a completed PR comparison.
+    value: ${{ steps.validate.outputs.pr-report-path }}
 
 runs:
   using: composite
@@ -97,6 +139,13 @@ runs:
         INPUT_MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         INPUT_FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
         INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        INPUT_COMPARE_WITH_BASE: ${{ inputs.compare-with-base }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+        INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
+        INPUT_COMPARISON_OUTPUT: ${{ inputs.comparison-output }}
+        INPUT_COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
       run: '"$ACTION_PATH/scripts/validate-inputs.sh"'
 
     - name: Set up .NET 10
@@ -137,6 +186,81 @@ runs:
         TOOL_COMMAND: ${{ steps.install.outputs.tool-command }}
         RUNNER_TEMP: ${{ runner.temp }}
       run: '"$ACTION_PATH/scripts/run-analysis.sh"'
+
+    - name: Compare with baseline
+      id: compare
+      if: ${{ always() && steps.validate.outcome == 'success' && steps.install.outcome == 'success' }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        WORKSPACE: ${{ github.workspace }}
+        RUNNER_TEMP: ${{ runner.temp }}
+        TOOL_COMMAND: ${{ steps.install.outputs.tool-command }}
+        ANALYSIS_STATUS: ${{ steps.analyze.outputs.analysis-status }}
+        ANALYSIS_RELATIVE_PATH: ${{ steps.validate.outputs.analysis-relative-path }}
+        COMPARISON_REQUESTED: ${{ steps.validate.outputs.comparison-requested }}
+        BASELINE_INPUT_PATH: ${{ steps.validate.outputs.baseline-input-path }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        COMPARISON_SARIF_PATH: ${{ steps.validate.outputs.comparison-sarif-path }}
+        BASE_REF: ${{ inputs.base-ref }}
+        INCLUDE_GENERATED: ${{ inputs.include-generated }}
+        DETECT_DUPLICATES: ${{ inputs.detect-duplicates }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: '"$ACTION_PATH/scripts/run-comparison.sh"'
+
+    - name: Build validated Pull Request report
+      id: pr-report
+      if: ${{ always() && github.event_name == 'pull_request' && (steps.compare.outputs.comparison-status == 'no-regressions' || steps.compare.outputs.comparison-status == 'regressions-detected') }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        WORKSPACE: ${{ github.workspace }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_WORKFLOW: ${{ github.workflow }}
+        ANALYSIS_RELATIVE_PATH: ${{ steps.validate.outputs.analysis-relative-path }}
+        REPORT_PATH: ${{ steps.validate.outputs.report-path }}
+        SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        REGRESSION_COUNT: ${{ steps.compare.outputs.regression-count }}
+        QUALITY_GATE_STATUS: ${{ steps.analyze.outputs.quality-gate-status }}
+        BASE_REVISION: ${{ steps.compare.outputs.base-revision }}
+        BASE_REVISION_KIND: ${{ steps.compare.outputs.base-revision-kind }}
+      run: 'python3 "$ACTION_PATH/scripts/build-pr-report.py"'
+
+    - name: Publish Pull Request report
+      id: publish-pr-report
+      if: ${{ always() && inputs.comment-on-pr == 'true' && steps.pr-report.outcome == 'success' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        EXPECTED_REPOSITORY: ${{ github.repository }}
+        EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
+        EXPECTED_RUN_ID: ${{ github.run_id }}
+        EXPECTED_WORKFLOW_NAME: ${{ github.workflow }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: 'python3 "$ACTION_PATH/scripts/publish-pr-comment.py"'
+
+    - name: Explain Pull Request publication failure
+      if: ${{ always() && inputs.comment-on-pr == 'true' && steps.publish-pr-report.outcome == 'failure' }}
+      shell: bash
+      run: >-
+        echo "::warning title=Pull Request comment not published::The validated report remains available, but GitHub did not permit publication. Grant only 'pull-requests: write' to a trusted publishing job; fork pull_request tokens are normally read-only."
 
     - name: Validate SARIF for Code Scanning
       id: validate-sarif
@@ -189,6 +313,19 @@ runs:
         MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
         MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         WORKSPACE: ${{ github.workspace }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        REGRESSION_COUNT: ${{ steps.compare.outputs.regression-count }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        BASE_REVISION: ${{ steps.compare.outputs.base-revision }}
+        BASE_REVISION_KIND: ${{ steps.compare.outputs.base-revision-kind }}
+        HEAD_REVISION: ${{ steps.compare.outputs.head-revision }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        PR_REPORT_OUTCOME: ${{ steps.pr-report.outcome }}
+        COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
+        COMMENT_OUTCOME: ${{ steps.publish-pr-report.outcome }}
       run: 'python3 "$ACTION_PATH/scripts/write-summary.py"'
 
     - name: Apply analysis result
@@ -201,4 +338,7 @@ runs:
         UPLOAD_SARIF: ${{ inputs.upload-sarif }}
         SARIF_VALIDATION_OUTCOME: ${{ steps.validate-sarif.outcome }}
         SARIF_UPLOAD_OUTCOME: ${{ steps.upload-sarif.outcome }}
+        COMPARISON_REQUESTED: ${{ steps.validate.outputs.comparison-requested }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
       run: '"$ACTION_PATH/scripts/apply-result.sh"'
