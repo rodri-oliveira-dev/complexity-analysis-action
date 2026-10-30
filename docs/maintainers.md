@@ -18,10 +18,14 @@ macOS are not supported until dedicated end-to-end jobs pass.
 
 1. Merge reviewed changes to protected `main` after CI, end-to-end, and CodeQL pass.
 2. Verify immutable releases in repository settings, then dispatch **Release
-   readiness** with that confirmation, `version` (for example `v1.0.0`), and the
-   full 40-character commit SHA. The workflow validates rather than publishes.
+   readiness** using **Run workflow** from `main`, with `version` (for example
+   `v1.0.0`) and the immutability confirmation. No commit input is needed:
+   the workflow uses the exact `github.sha` of `main` captured at dispatch
+   time and rejects runs started from other branches. The workflow validates
+   rather than publishes.
 3. Review the generated notes, manifest, Marketplace metadata report, repository
-   settings, and exact-commit CI/End-to-end/CodeQL results.
+   settings, and exact-commit CI/End-to-end/CodeQL results. Use the SHA saved in
+   the release manifest for the approved tag even if `main` has advanced.
 4. Confirm the repository has no critical alert and immutable releases remain enabled.
 5. Create a draft release for `vX.Y.Z`, attach any reviewed artifacts, and obtain
    explicit approval before publication. For the initial release, use the

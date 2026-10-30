@@ -414,9 +414,11 @@ release is verified; it is not itself a GitHub release. See
 [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
 
 Release publication is never triggered by a push. The manually dispatched
-**Release readiness** workflow validates an exact version and commit, confirms
-tag uniqueness and the published CLI, reruns required checks, and creates a
-deterministic manifest and release notes without creating a tag or release.
+**Release readiness** workflow, when dispatched from `main`, automatically
+uses its exact commit SHA captured at dispatch (no manual SHA input). It
+validates the selected version and commit, confirms tag uniqueness and the
+published CLI, reruns required checks, and creates a deterministic manifest
+and release notes without creating a tag or release.
 
 ## Troubleshooting
 

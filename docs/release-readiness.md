@@ -81,5 +81,10 @@ owner-confirmed UI operations.
 
 No workflow in this repository publishes on push. Manual release readiness only
 generates notes, a hash manifest, and repository-settings evidence for an exact
-version and commit. It does not create or move tags, create a GitHub release,
-merge a branch, or submit to Marketplace.
+version and commit. Dispatch **Release readiness** from `main`: the workflow
+captures GitHub's `github.sha` for that workflow_dispatch event, rejects
+non-`main` branches, and uses the same immutable SHA for checkout, manifest,
+and required workflow-result checks. No manual SHA field is necessary; a
+subsequent change to `main` does not change an already-started run. It does
+not create or move tags, create a GitHub release, merge a branch, or submit
+to Marketplace.
