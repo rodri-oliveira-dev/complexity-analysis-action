@@ -25,7 +25,8 @@ command -v tar >/dev/null 2>&1 || fail "GNU tar is required on the runner."
 tar --create --file - \
   --directory "$WORKSPACE" \
   --exclude='./.git' \
-  --exclude="./$OUTPUT_RELATIVE_PATH" \
+  --exclude="./$OUTPUT_RELATIVE_PATH/complexity-analysis-report.json" \
+  --exclude="./$OUTPUT_RELATIVE_PATH/complexity-analysis-report.sarif" \
   . | tar --extract --file - --directory "$analysis_workspace" ||
   fail "Unable to create an isolated copy of the workspace."
 isolated_analysis_path="$analysis_workspace/$ANALYSIS_RELATIVE_PATH"

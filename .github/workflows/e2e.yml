@@ -22,12 +22,15 @@ jobs:
         include:
           - entry-kind: csproj
             entry-path: tests/fixtures/Sample Project/Sample Project.csproj
+            output-path: tests/fixtures/Sample Project
             duplicates: "true"
           - entry-kind: sln
             entry-path: tests/fixtures/Sample Project/Sample Project.sln
+            output-path: artifacts/sln report
             duplicates: "false"
           - entry-kind: slnx
             entry-path: tests/fixtures/Sample Project/Sample Project.slnx
+            output-path: artifacts/slnx report
             duplicates: "false"
     steps:
       # actions/checkout v6.0.2
@@ -38,7 +41,7 @@ jobs:
         with:
           path: ${{ matrix.entry-path }}
           tool-version: 1.0.0
-          output-directory: artifacts/${{ matrix.entry-kind }} report
+          output-directory: ${{ matrix.output-path }}
           detect-duplicates: ${{ matrix.duplicates }}
       - name: Assert reports and outputs
         shell: bash

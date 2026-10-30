@@ -74,6 +74,7 @@ run_analysis() {
   local exit_code="$1"
   local has_thresholds="$2"
   local output="$3"
+  local output_relative="${5:-reports with spaces}"
   : > "$test_root/invocations"
   env \
     ACTION_PATH="$repo_root" \
@@ -82,7 +83,7 @@ run_analysis() {
     GITHUB_OUTPUT="$output" \
     ANALYSIS_PATH="$workspace/Sample Project/Sample Project.csproj" \
     ANALYSIS_RELATIVE_PATH="Sample Project/Sample Project.csproj" \
-    OUTPUT_RELATIVE_PATH="reports with spaces" \
+    OUTPUT_RELATIVE_PATH="$output_relative" \
     WORKSPACE="$workspace" \
     REPORT_PATH="$report" \
     SARIF_PATH="$sarif" \
@@ -106,6 +107,11 @@ grep -Fx 'quality-gate-status=not-configured' "$test_root/success-output" >/dev/
 grep -F '|json|true' "$test_root/invocations" >/dev/null
 python3 "$repo_root/scripts/validate-report.py" json "$report"
 python3 "$repo_root/scripts/validate-report.py" sarif "$sarif"
+
+# The output directory may also contain the selected project. Only stale report
+# files may be omitted from the isolated copy; excluding the directory breaks it.
+run_analysis 0 false "$test_root/overlap-output" "" "Sample Project"
+grep -Fx 'analysis-status=success' "$test_root/overlap-output" >/dev/null
 
 run_analysis 0 true "$test_root/passing-output" 100
 grep -Fx 'quality-gate-status=passed' "$test_root/passing-output" >/dev/null
