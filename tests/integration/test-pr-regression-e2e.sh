@@ -50,7 +50,7 @@ git -C "$workspace" remote add origin "$workspace"
 
 install_output="$test_root/install-output"
 env GITHUB_OUTPUT="$install_output" RUNNER_TEMP="$test_root/runner" \
-  NUGET_CONFIG="$repo_root/nuget.config" TOOL_VERSION=1.0.0 \
+  NUGET_CONFIG="$repo_root/nuget.config" TOOL_VERSION=1.0.1 \
   "$repo_root/scripts/install-tool.sh"
 tool_command="$(sed -n 's/^tool-command=//p' "$install_output")"
 

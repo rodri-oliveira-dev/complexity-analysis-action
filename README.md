@@ -1,14 +1,62 @@
 # Complexity Analysis Action
 
+English | [Português (Brasil)](README.pt-BR.md)
+
 Reusable GitHub Action for deterministic complexity analysis of C# projects and
 solutions. The Action installs and invokes the published
 [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool)
 CLI; it does not copy or reimplement the analysis engine.
+The CLI and analyzer are maintained in the
+[`complexity-analyzers`](https://github.com/rodri-oliveira-dev/complexity-analyzers)
+repository.
+
+The stable Action contract is versioned independently from the CLI and analysis
+engine. The planned first stable release is `v1.0.0`; the exact CLI dependency
+is currently `1.0.1`.
 
 > [!IMPORTANT]
-> This is the Phase 2 prerelease. It supports `ubuntu-latest` only and has not been
+> This is a release candidate. It supports `ubuntu-latest` only and has not been
 > released or published to GitHub Marketplace. Use a reviewed full commit SHA
 > during evaluation. Release aliases such as `@v1` do not exist yet.
+
+## Overview
+
+Complexity Analysis helps .NET teams analyze C# complexity in CI pipelines,
+enforce explicit quality gates, compare changes in pull requests, generate JSON
+and SARIF reports, detect proven regressions, and review validated results in
+GitHub. It uses structural metrics and estimated algorithmic complexity. It is
+not a runtime benchmark, automatic performance optimizer, or precise predictor
+of execution time.
+
+## Installation
+
+Before the first public release, replace the zero SHA below with a reviewed full
+commit SHA. After publication, `v1.0.0` will identify the immutable initial
+release and `v1` will follow compatible v1 releases. Security-sensitive users
+should continue to pin the full release commit SHA.
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    with:
+      persist-credentials: false
+  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+    with:
+      path: MySolution.slnx
+```
+
+Validated workflow examples:
+
+- [Basic analysis](examples/basic-analysis.yml)
+- [Configurable quality gates](examples/quality-gates.yml)
+- [Non-blocking analysis](examples/non-blocking-analysis.yml)
+- [SARIF upload](examples/sarif-upload.yml)
+- [PR regression analysis](examples/secure-pr-analysis.yml)
+- [Isolated fork PR feedback](examples/secure-pr-publish.yml)
+- [Complete consumer workflow](examples/consumer-workflow.yml)
 
 ## Requirements
 
@@ -21,7 +69,7 @@ CLI; it does not copy or reimplement the analysis engine.
   `security-events: write`; direct PR comments additionally require
   `pull-requests: write`.
 
-## Usage
+## Complete example
 
 ```yaml
 name: Complexity Analysis
@@ -37,13 +85,15 @@ jobs:
     steps:
       # actions/checkout v6.0.2
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
 
       # Replace this placeholder with a reviewed full commit SHA.
       - id: complexity
         uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
         with:
           path: My Solution.slnx
-          tool-version: 1.0.0
+          tool-version: 1.0.1
           output-directory: artifacts/complexity-analysis
           include-generated: "false"
           detect-duplicates: "true"
@@ -57,8 +107,8 @@ jobs:
           fail-on-regression: "true"
           comment-on-pr: "false"
 
-      # actions/upload-artifact v5.0.0
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: complexity-analysis-report
           path: ${{ steps.complexity.outputs.report-path }}
@@ -69,7 +119,7 @@ jobs:
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `path` | Yes | - | Workspace-relative or absolute workspace path to a `.csproj`, `.sln`, or `.slnx` file. |
-| `tool-version` | No | `1.0.0` | Exact published `ComplexityAnalysis.Tool` version. Floating versions are rejected. |
+| `tool-version` | No | `1.0.1` | Exact published `ComplexityAnalysis.Tool` version. Floating versions are rejected. |
 | `output-directory` | No | `complexity-analysis-reports` | Workspace directory for JSON and SARIF reports. |
 | `include-generated` | No | `false` | Passes `--include-generated` when `true`. |
 | `detect-duplicates` | No | `false` | Passes `--detect-duplicates` when `true`. |
@@ -210,7 +260,8 @@ use the two-workflow pattern in
    commit SHA. It never checks out the PR revision.
 3. `publish-pr-report` validates the schema, size, repository, PR number, event
    base/head SHAs, workflow run ID, workflow name, completed-comparison state, counts, and
-   evidence before making an API request. A mismatch stops publication.
+   evidence before making an API request. It also confirms that the PR is still
+   open at the reported head SHA. A mismatch stops publication.
 
 Artifact report text is still untrusted. Markdown values are HTML-escaped,
 table delimiters and line breaks are neutralized, HTML comment injection is
@@ -318,7 +369,7 @@ sandboxing remain the runner owner's responsibility.
   project evaluation. They are passed as arguments and never evaluated as code.
 
 The CLI supports `.csproj`, `.sln`, and `.slnx` inputs and requires .NET 10.
-Version `1.0.0` is the published package version exercised by the end-to-end
+Version `1.0.1` is the published package version exercised by the end-to-end
 suite. Comparison currently assumes the configured entry-point path exists in
 both revisions; an entry-point rename is unavailable rather than guessed.
 Member/source-file renames, project additions/deletions, multiple target
@@ -326,7 +377,34 @@ frameworks, generated-code settings, and evidence compatibility are left to the
 CLI snapshot matcher. The Action does not upload comparison SARIF, infer
 alternate entry points, support non-Linux runners, or provide a process/network
 sandbox. Comment discovery follows every GitHub API page before creating a new
-report, so an older bot report remains idempotent on busy pull requests.
+report, and publication refuses a report whose head SHA is no longer the open
+pull request head.
+
+## Compatibility and versioning
+
+Only Ubuntu GitHub-hosted runners are supported in `v1`. Linux tests cover
+`.csproj`, `.sln`, `.slnx`, paths containing spaces, quality gates, JSON and
+SARIF, snapshots, regression comparison, PR report generation, installation
+errors, and cancellation. Windows and macOS have not passed equivalent
+end-to-end suites and are explicitly unsupported.
+
+Action releases follow Semantic Versioning independently of NuGet packages:
+
+- PATCH: backward-compatible fixes and security updates.
+- MINOR: backward-compatible functionality.
+- MAJOR: a change to inputs/defaults, outputs, runner support, quality-gate or
+  reporting semantics, or documented security requirements.
+
+Use immutable `vX.Y.Z` release tags or a reviewed full commit SHA. The movable
+`v1` compatibility reference is advanced only after a compatible immutable
+release is verified; it is not itself a GitHub release. See
+[`docs/maintainers.md`](docs/maintainers.md) and
+[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
+
+Release publication is never triggered by a push. The manually dispatched
+**Release readiness** workflow validates an exact version and commit, confirms
+tag uniqueness and the published CLI, reruns required checks, and creates a
+deterministic manifest and release notes without creating a tag or release.
 
 ## Troubleshooting
 
@@ -381,3 +459,14 @@ versions and verifies their SHA-256 digests before use. Repository CI consumes
 including paths containing spaces. It also asserts expected installation,
 input, quality-gate, execution, and cancellation failures without masking an
 unexpected result.
+
+## Public release verification
+
+The planned Action release is independent of the CLI version. No release tag or
+Marketplace listing should be treated as available before publication. The
+[Marketplace publication checklist](docs/marketplace.md) documents owner-only
+approval. After publishing a stable version, use the read-only
+[Verify published Action release](.github/workflows/verify-published-release.yml)
+workflow to check the exact release and maintained-major tag targets. Verify the
+Action separately from an [external consumer repository](docs/external-consumer-validation.md).
+This check does not claim Marketplace visibility or create any release.

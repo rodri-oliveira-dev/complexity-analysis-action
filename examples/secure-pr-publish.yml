@@ -13,6 +13,9 @@ jobs:
   publish:
     if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.pull_requests[0] != null }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: complexity-pr-report-${{ github.event.workflow_run.pull_requests[0].number }}
+      cancel-in-progress: true
     steps:
       # Download only the named artifact from the exact triggering run.
       # actions/download-artifact v6.0.0

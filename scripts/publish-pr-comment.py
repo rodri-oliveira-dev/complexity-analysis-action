@@ -44,6 +44,12 @@ def publish(client: GitHubClient, report: dict[str, Any]) -> str:
     number = report["PullRequest"]["Number"]
     body = render_comment(report)
     encoded_repository = "/".join(urllib.parse.quote(part, safe="") for part in repository.split("/"))
+    pull = client.request("GET", f"/repos/{encoded_repository}/pulls/{number}")
+    if not isinstance(pull, dict) or pull.get("state") != "open":
+        raise ReportError("The pull request is no longer open.")
+    head = pull.get("head")
+    if not isinstance(head, dict) or str(head.get("sha", "")).lower() != report["PullRequest"]["HeadSha"]:
+        raise ReportError("The pull request head changed after this report was generated.")
     comments: list[dict[str, Any]] = []
     page = 1
     while True:

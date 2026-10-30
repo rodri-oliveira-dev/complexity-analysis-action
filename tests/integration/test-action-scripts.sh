@@ -168,6 +168,22 @@ env ANALYSIS_EXIT_CODE=2 FAIL_ON_QUALITY_GATE=false UPLOAD_SARIF=false \
   SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
   COMPARISON_REQUESTED=true COMPARISON_STATUS=regressions-detected FAIL_ON_REGRESSION=false \
   "$repo_root/scripts/apply-result.sh"
+env ANALYSIS_EXIT_CODE=0 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=true \
+  SARIF_VALIDATION_OUTCOME=success SARIF_UPLOAD_OUTCOME=success \
+  COMPARISON_REQUESTED=false COMPARISON_STATUS=not-requested FAIL_ON_REGRESSION=false \
+  "$repo_root/scripts/apply-result.sh"
+if env ANALYSIS_EXIT_CODE=0 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=true \
+  SARIF_VALIDATION_OUTCOME=failure SARIF_UPLOAD_OUTCOME=skipped \
+  COMPARISON_REQUESTED=false COMPARISON_STATUS=not-requested FAIL_ON_REGRESSION=false \
+  "$repo_root/scripts/apply-result.sh"; then
+  fail "SARIF validation failure was accepted"
+fi
+if env ANALYSIS_EXIT_CODE=0 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=true \
+  SARIF_VALIDATION_OUTCOME=success SARIF_UPLOAD_OUTCOME=failure \
+  COMPARISON_REQUESTED=false COMPARISON_STATUS=not-requested FAIL_ON_REGRESSION=false \
+  "$repo_root/scripts/apply-result.sh"; then
+  fail "SARIF upload failure was accepted"
+fi
 if env ANALYSIS_EXIT_CODE=0 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=false \
   SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
   COMPARISON_REQUESTED=true COMPARISON_STATUS=regressions-detected FAIL_ON_REGRESSION=true \
@@ -197,9 +213,15 @@ if env \
   RUNNER_TEMP="$test_root/runner" \
   GITHUB_OUTPUT="$test_root/install-output" \
   NUGET_CONFIG="$repo_root/nuget.config" \
-  TOOL_VERSION=1.0.0 \
+  TOOL_VERSION=1.0.1 \
   "$repo_root/scripts/install-tool.sh"; then
   fail "CLI installation failure was accepted"
 fi
+
+cleanup_target="$test_root/runner/complexity-analysis-tool.cleanup-test"
+mkdir -p "$cleanup_target"
+env RUNNER_TEMP="$test_root/runner" TOOL_DIRECTORY="$cleanup_target" \
+  "$repo_root/scripts/cleanup-tool.sh"
+[[ ! -e "$cleanup_target" ]] || fail "CLI temporary directory was not removed"
 
 printf 'All Action script integration tests passed.\n'

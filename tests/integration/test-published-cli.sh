@@ -15,7 +15,7 @@ validation_output="$test_root/validation-output"
 env \
   GITHUB_OUTPUT="$validation_output" \
   INPUT_PATH="tests/fixtures/Sample Project/Sample Project.slnx" \
-  INPUT_TOOL_VERSION=1.0.0 \
+  INPUT_TOOL_VERSION=1.0.1 \
   INPUT_OUTPUT_DIRECTORY="artifacts/published CLI integration" \
   INPUT_INCLUDE_GENERATED=false \
   INPUT_DETECT_DUPLICATES=true \
@@ -33,7 +33,7 @@ install_output="$test_root/install-output"
 env \
   GITHUB_OUTPUT="$install_output" \
   NUGET_CONFIG="$repo_root/nuget.config" \
-  TOOL_VERSION=1.0.0 \
+  TOOL_VERSION=1.0.1 \
   "$repo_root/scripts/install-tool.sh"
 tool_command="$(sed -n 's/^tool-command=//p' "$install_output")"
 

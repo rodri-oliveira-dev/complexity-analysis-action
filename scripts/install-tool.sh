@@ -29,4 +29,5 @@ installed_version="$($tool_command --version)" || fail "Unable to read the insta
   fail "Installed CLI version '$installed_version' does not match requested version '$TOOL_VERSION'."
 
 printf 'tool-command=%s\n' "$tool_command" >> "$GITHUB_OUTPUT"
+printf 'tool-directory=%s\n' "$tool_directory" >> "$GITHUB_OUTPUT"
 printf 'Installed ComplexityAnalysis.Tool %s.\n' "$installed_version"

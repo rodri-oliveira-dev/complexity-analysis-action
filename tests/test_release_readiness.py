@@ -1,0 +1,34 @@
+import importlib.util
+import unittest
+from pathlib import Path
+
+
+spec = importlib.util.spec_from_file_location(
+    "prepare_release", Path(__file__).resolve().parents[1] / "scripts" / "prepare-release.py"
+)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+
+
+class ReleaseReadinessTests(unittest.TestCase):
+    def test_accepts_stable_action_version(self):
+        self.assertIsNotNone(module.VERSION_RE.fullmatch("v1.0.0"))
+        self.assertIsNone(module.VERSION_RE.fullmatch("1.0.0"))
+        self.assertIsNone(module.VERSION_RE.fullmatch("v1.0.0-beta.1"))
+
+    def test_reads_exact_cli_default(self):
+        document = "inputs:\n  tool-version:\n    description: exact\n    default: 1.0.1\n"
+        self.assertEqual(module.cli_default(document), "1.0.1")
+        with self.assertRaises(module.ReadinessError):
+            module.cli_default(document.replace("1.0.1", "1.*"))
+
+    def test_extracts_matching_changelog_entry(self):
+        document = "# Log\n\n## [1.0.0] - Unreleased\n\nReady.\n\n## [0.9.0]\n\nOld.\n"
+        self.assertEqual(module.changelog_section(document, "v1.0.0"), "Ready.")
+        with self.assertRaises(module.ReadinessError):
+            module.changelog_section(document, "v2.0.0")
+
+
+if __name__ == "__main__":
+    unittest.main()

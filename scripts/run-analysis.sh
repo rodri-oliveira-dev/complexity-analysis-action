@@ -19,6 +19,10 @@ done
 # paths and symlinks without evaluating repository-controlled text as commands.
 analysis_temp="$(mktemp -d "$RUNNER_TEMP/complexity-analysis-build.XXXXXX")" ||
   fail "Unable to create isolated analysis storage."
+cleanup() {
+  rm -rf -- "$analysis_temp"
+}
+trap cleanup EXIT
 analysis_workspace="$analysis_temp/workspace"
 mkdir -p -- "$analysis_workspace" || fail "Unable to create the isolated workspace."
 command -v tar >/dev/null 2>&1 || fail "GNU tar is required on the runner."
