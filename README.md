@@ -1,5 +1,7 @@
 # Complexity Analysis Action
 
+English | [Português (Brasil)](README.pt-BR.md)
+
 Reusable GitHub Action for deterministic complexity analysis of C# projects and
 solutions. The Action installs and invokes the published
 [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool)
