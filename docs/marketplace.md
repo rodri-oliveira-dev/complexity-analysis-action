@@ -1,5 +1,14 @@
 # GitHub Marketplace publication plan
 
+## What appears on the repository page
+
+A public repository with the root `action.yml` is a reusable GitHub Action, but **merging a documentation PR does not publish a Marketplace listing or create an install button**. Before release, the README highlights that this is a GitHub Action and provides a complete workflow using a reviewed commit SHA. The `action.yml` file also exposes the owner-only **Draft a release** banner.
+
+After the owner publishes `v1.0.0` with **Publish this Action to the GitHub Marketplace** selected, consumers can visit its dedicated Marketplace listing and select **Use latest version** to copy the `uses:` snippet. Once the listing and both version references are verified, update the public README with the *verified* Marketplace URL and an `@v1` quick-start example. At that point the pre-publication link guard in `scripts/validate-distribution.py` and its tests must also be updated intentionally, so CI does not incorrectly reject a legitimate listing link. Do not invent a Marketplace URL or advertise a version ref before it is available.
+
+GitHub's [official publication procedure](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace) is the authoritative reference.
+
+
 ## Proposed listing
 
 - Product name: **Complexity Analysis**
