@@ -1,6 +1,10 @@
 # Complexity Analysis Action
 
+[![GitHub Action](https://img.shields.io/badge/GitHub-Action-2088FF?logo=githubactions&logoColor=white)](action.yml)
+
 [English](README.md) | Português (Brasil)
+
+**Comece por aqui:** [Adicionar ao workflow](#como-utilizar) · [Exemplos](examples/) · [Publicação no Marketplace](docs/marketplace.md)
 
 GitHub Action reutilizável para analisar a complexidade de projetos e soluções C# no CI. A Action instala e executa a CLI publicada [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool), sem replicar o motor de análise. O código da CLI, dos analyzers e do MCP está no [projeto principal](https://github.com/rodri-oliveira-dev/complexity-analyzers).
 
@@ -65,6 +69,8 @@ jobs:
 ```
 
 Esse exemplo usa apenas permissões de leitura. O marcador é proposital e **não é um ref executável** antes de ser substituído. Quando as tags existirem, também será possível usar `@v1.0.0` ou a referência compatível `@v1`; para maior reprodutibilidade, prefira um SHA completo.
+
+**Após a primeira publicação:** a página da Action no GitHub Marketplace oferecerá **Use latest version**, com um exemplo para copiar. O responsável pelo repositório precisa publicar a release `v1.0.0` no Marketplace para que essa opção exista. A documentação descreve o [processo de publicação](docs/marketplace.md).
 
 Outros exemplos, para copiar e adaptar:
 
