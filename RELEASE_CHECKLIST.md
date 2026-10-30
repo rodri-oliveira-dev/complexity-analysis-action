@@ -17,6 +17,8 @@
 - [ ] Run read-only post-publication verification against the approved commit.
 - [ ] Verify external consumption of `vX.Y.Z`, `vX`, and the full SHA; record consumer workflow URLs.
 - [ ] Confirm Marketplace listing visibility independently in the owner's GitHub UI.
+- [ ] Confirm the Marketplace page offers **Use latest version** for the published release.
+- [ ] Once the listing is verified, update README installation examples and link to the real Marketplace page; deliberately update the pre-publication validator and its tests in the same change.
 - [ ] Verify the Marketplace listing before adding its URL to public documentation.
 
 Never force-update a release-specific tag. Do not create a GitHub release for
