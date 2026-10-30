@@ -52,11 +52,14 @@ jobs:
           bash tests/integration/test-pr-regression-e2e.sh
       - name: Generate deterministic release artifacts
         shell: bash
-        run: >-
-          python3 scripts/prepare-release.py
-          --version "${{ inputs.version }}"
-          --commit "${{ inputs.commit }}"
-          --output-directory release-readiness
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_COMMIT: ${{ inputs.commit }}
+        run: |
+          python3 scripts/prepare-release.py \
+            --version "$RELEASE_VERSION" \
+            --commit "$RELEASE_COMMIT" \
+            --output-directory release-readiness
       - name: Record Marketplace metadata validation
         id: marketplace-metadata
         continue-on-error: true
