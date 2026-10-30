@@ -12,6 +12,22 @@ spec.loader.exec_module(module)
 
 
 class ReleaseReadinessTests(unittest.TestCase):
+    def test_workflow_uses_main_dispatch_sha_consistently(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github" / "workflows" / "release-readiness.yml"
+        ).read_text(encoding="utf-8")
+        workflow_inputs = workflow.split("    inputs:\n", 1)[1].split("\npermissions:", 1)[0]
+
+        self.assertNotRegex(workflow_inputs, r"(?m)^\s+commit:")
+        self.assertIn('RELEASE_REF: ${{ github.ref }}', workflow)
+        self.assertIn('RELEASE_COMMIT: ${{ github.sha }}', workflow)
+        self.assertIn('[[ "$RELEASE_REF" != "refs/heads/main" ]]', workflow)
+        self.assertIn('ref: ${{ github.sha }}', workflow)
+        self.assertIn('--commit "$RELEASE_COMMIT"', workflow)
+        self.assertNotIn("inputs.commit", workflow)
+        self.assertIn('RELEASE_VERSION: ${{ inputs.version }}', workflow)
+
     def test_accepts_stable_action_version(self):
         self.assertIsNotNone(module.VERSION_RE.fullmatch("v1.0.0"))
         self.assertIsNone(module.VERSION_RE.fullmatch("1.0.0"))
