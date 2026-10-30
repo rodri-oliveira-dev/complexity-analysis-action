@@ -105,8 +105,8 @@ jobs:
           fail-on-regression: "true"
           comment-on-pr: "false"
 
-      # actions/upload-artifact v5.0.0
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+      # actions/upload-artifact v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: complexity-analysis-report
           path: ${{ steps.complexity.outputs.report-path }}
