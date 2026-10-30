@@ -3,7 +3,7 @@
 This project follows Semantic Versioning independently of
 `ComplexityAnalysis.Tool` and the analysis engine.
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-10-30
 
 ### Added
 

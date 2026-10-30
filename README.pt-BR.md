@@ -4,14 +4,19 @@
 
 [English](README.md) | Português (Brasil)
 
-**Comece por aqui:** [Adicionar ao workflow](#como-utilizar) · [Exemplos](examples/) · [Publicação no Marketplace](docs/marketplace.md)
+**Comece por aqui:** [Adicionar ao workflow](#como-utilizar) · [Exemplos](examples/) · [Release v1.0.0](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) · [Verificação do Marketplace](docs/marketplace.md)
 
 GitHub Action reutilizável para analisar a complexidade de projetos e soluções C# no CI. A Action instala e executa a CLI publicada [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool), sem replicar o motor de análise. O código da CLI, dos analyzers e do MCP está no [projeto principal](https://github.com/rodri-oliveira-dev/complexity-analyzers).
 
-As versões da Action são independentes das versões da CLI. A primeira release estável planejada é `v1.0.0`, e a versão exata da CLI configurada atualmente é `1.0.1`.
+As versões da Action são independentes das versões da CLI. A primeira release
+estável, [`v1.0.0`](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0), foi publicada em
+30/10/2026 e utiliza `ComplexityAnalysis.Tool` 1.0.1.
 
 > [!IMPORTANT]
-> Esta é uma candidata a release. No momento desta atualização, a Action ainda não possui release publicada nem listagem no GitHub Marketplace. A plataforma suportada é Ubuntu. Para avaliar a Action antes da primeira release, utilize o **SHA completo de 40 caracteres de um commit revisado**. Não considere `@v1` ou `@v1.0.0` como disponíveis até a publicação.
+> A `v1.0.0` está publicada, com suporte apenas a runners Ubuntu.
+> A referência compatível `@v1` ainda não foi criada. Para maior
+> reprodutibilidade, utilize o SHA aprovado da release. A presença no
+> GitHub Marketplace deve ser verificada separadamente.
 
 ## O que ela faz
 
@@ -39,7 +44,9 @@ Não há suporte anunciado para Windows ou macOS nesta primeira versão, pois os
 
 ## Como utilizar
 
-Crie `.github/workflows/complexity-analysis.yml` no repositório consumidor. Antes da release, substitua o marcador `REVIEWED_FULL_40_CHARACTER_SHA` pelo SHA completo de um commit revisado da Action, e `MySolution.slnx` pelo caminho real do projeto ou solução.
+Crie `.github/workflows/complexity-analysis.yml` no repositório consumidor.
+O exemplo utiliza o SHA oficial da `v1.0.0`. Substitua `MySolution.slnx`
+pelo caminho real do projeto ou solução.
 
 ```yaml
 name: Complexity Analysis
@@ -58,7 +65,7 @@ jobs:
         with:
           persist-credentials: false
       - id: complexity
-        uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
+        uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           path: MySolution.slnx
           max-cyclomatic-complexity: "15"
@@ -68,9 +75,14 @@ jobs:
           fail-on-regression: "true"
 ```
 
-Esse exemplo usa apenas permissões de leitura. O marcador é proposital e **não é um ref executável** antes de ser substituído. Quando as tags existirem, também será possível usar `@v1.0.0` ou a referência compatível `@v1`; para maior reprodutibilidade, prefira um SHA completo.
+O exemplo usa apenas permissões de leitura e está fixado no commit da release.
+Também é possível usar a tag publicada `@v1.0.0`; a referência móvel `@v1`
+ainda não está disponível. Para maior reprodutibilidade, prefira o SHA completo.
 
-**Após a primeira publicação:** a página da Action no GitHub Marketplace oferecerá **Use latest version**, com um exemplo para copiar. O responsável pelo repositório precisa publicar a release `v1.0.0` no Marketplace para que essa opção exista. A documentação descreve o [processo de publicação](docs/marketplace.md).
+**Marketplace:** a GitHub Release `v1.0.0` foi publicada. A disponibilidade
+da listagem e da opção **Use latest version** requer
+[verificação independente](docs/marketplace.md); não é comprovada apenas pela
+existência da release.
 
 Outros exemplos, para copiar e adaptar:
 
@@ -155,7 +167,8 @@ A publicação automática de resultados não é requisito para usar os relatór
 
 ## Solução de problemas
 
-**Action não encontrada ao usar `@v1`:** ainda não há garantia de que as tags foram publicadas. Consulte [Releases](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases) e use um SHA completo revisado para avaliações.
+**Action não encontrada com `@v1`:** a referência compatível ainda não foi
+criada. Use `@v1.0.0` ou o SHA aprovado da release até sua publicação.
 
 **Falha na instalação:** confira a conexão com NuGet.org, o SDK/runtime .NET 10 e se `tool-version` especifica uma versão publicada exata.
 
@@ -173,6 +186,9 @@ A publicação automática de resultados não é requisito para usar os relatór
 
 A Action tem versionamento SemVer independente do `ComplexityAnalysis.Tool`, do Roslyn Analyzer e do MCP. As tags `vX.Y.Z` identificam releases específicas; a referência `vX`, quando criada, acompanha versões compatíveis da mesma major.
 
-A publicação é controlada pelo mantenedor, conforme o [checklist de release](RELEASE_CHECKLIST.md) e a [orientação para o Marketplace](docs/marketplace.md). Até a aprovação e publicação, as referências à `v1.0.0` são um planejamento, não uma release existente.
+A [`v1.0.0`](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) já foi publicada. As
+próximas versões seguem o [checklist de release](RELEASE_CHECKLIST.md) e o
+[guia de mantenedores](docs/maintainers.md). A tag móvel `v1` depende de
+criação e verificação separadas.
 
 Para validar alterações na Action, consulte [Contribuindo](CONTRIBUTING.md), o [guia de mantenedores](docs/maintainers.md) e as verificações de CI. Para conceitos e detalhes das métricas, consulte a documentação [Complexity Analyzers](https://github.com/rodri-oliveira-dev/complexity-analyzers).

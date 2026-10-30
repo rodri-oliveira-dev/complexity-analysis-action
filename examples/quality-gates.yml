@@ -14,8 +14,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # Replace the zero SHA with the reviewed release commit.
-      - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+      # Pinned to the reviewed v1.0.0 release commit.
+      - uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           path: MySolution.slnx
           max-complexity: n_log_n

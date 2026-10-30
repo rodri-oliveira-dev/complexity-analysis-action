@@ -27,6 +27,8 @@ REQUIRED_EXAMPLES = {
     "consumer-workflow.yml",
 }
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+PUBLISHED_RELEASE_SHA = "2d807ef29ca03c685d224543a135d8c30dfe2c67"
+ACTION_REF_PREFIX = "rodri-oliveira-dev/complexity-analysis-action@"
 
 
 class DistributionError(RuntimeError):
@@ -136,6 +138,13 @@ def validate(root: Path) -> dict[str, object]:
         unknown = example_inputs(path) - inputs
         if unknown:
             raise DistributionError(f"{path.name} uses unknown Action inputs: {sorted(unknown)}")
+        example = path.read_text(encoding="utf-8")
+        # Full-SHA pins also cover the publication-only nested companion Action.
+        expected = ACTION_REF_PREFIX if example_name != "secure-pr-publish.yml" else (
+            "rodri-oliveira-dev/complexity-analysis-action/publish-pr-report@"
+        )
+        if f"{expected}{PUBLISHED_RELEASE_SHA}" not in example:
+            raise DistributionError(f"{path.name} must pin the published v1.0.0 commit")
 
     release_notes = root / "docs" / "releases" / "v1.0.0.md"
     notes = release_notes.read_text(encoding="utf-8")
@@ -146,8 +155,14 @@ def validate(root: Path) -> dict[str, object]:
         if f"## {heading}" not in notes:
             raise DistributionError(f"v1.0.0 release notes are missing the {heading} section")
     readme = (root / "README.md").read_text(encoding="utf-8")
-    if "github.com/marketplace/actions/" in readme:
-        raise DistributionError("README must not claim a Marketplace listing before publication")
+    portuguese = (root / "README.pt-BR.md").read_text(encoding="utf-8")
+    for document_name, text in (("README.md", readme), ("README.pt-BR.md", portuguese)):
+        if f"{ACTION_REF_PREFIX}{PUBLISHED_RELEASE_SHA}" not in text:
+            raise DistributionError(f"{document_name} does not pin the published v1.0.0 commit")
+        if "@REVIEWED_FULL_40_CHARACTER_SHA" in text or (
+            "@0000000000000000000000000000000000000000" in text
+        ):
+            raise DistributionError(f"{document_name} still contains a pre-release placeholder")
     if "runtime benchmark" not in readme or "complexity-analyzers" not in readme:
         raise DistributionError("README is missing product-scope or analysis-engine discovery text")
 
@@ -163,8 +178,8 @@ def validate(root: Path) -> dict[str, object]:
         "outputs": sorted(outputs),
         "examples": sorted(REQUIRED_EXAMPLES),
         "localDocumentationLinksChecked": checked_links,
-        "nameUniqueness": "manual-release-form-confirmation-required",
-        "marketplacePublished": False,
+        "nameUniquenessVerification": "not-verified-by-local-validator",
+        "marketplaceListingVerification": "not-verified-by-local-validator",
     }
 
 

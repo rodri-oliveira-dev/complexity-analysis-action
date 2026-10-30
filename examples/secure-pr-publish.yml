@@ -25,8 +25,8 @@ jobs:
           path: downloaded-report
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
-      # Replace with the same reviewed full commit SHA as the analysis workflow.
-      - uses: rodri-oliveira-dev/complexity-analysis-action/publish-pr-report@0000000000000000000000000000000000000000
+      # Pinned to the reviewed v1.0.0 release commit; match analysis workflow.
+      - uses: rodri-oliveira-dev/complexity-analysis-action/publish-pr-report@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           report-path: downloaded-report/pr-report.json
           expected-repository: ${{ github.repository }}
