@@ -1,6 +1,10 @@
 # Complexity Analysis Action
 
+[![GitHub Action](https://img.shields.io/badge/GitHub-Action-2088FF?logo=githubactions&logoColor=white)](action.yml)
+
 English | [Português (Brasil)](README.pt-BR.md)
+
+**Get started:** [Add to a workflow](#quick-start) · [Examples](examples/) · [Marketplace publication status](docs/marketplace.md)
 
 Reusable GitHub Action for deterministic complexity analysis of C# projects and
 solutions. The Action installs and invokes the published
@@ -28,25 +32,33 @@ GitHub. It uses structural metrics and estimated algorithmic complexity. It is
 not a runtime benchmark, automatic performance optimizer, or precise predictor
 of execution time.
 
-## Installation
+## Quick start
 
-Before the first public release, replace the zero SHA below with a reviewed full
-commit SHA. After publication, `v1.0.0` will identify the immutable initial
-release and `v1` will follow compatible v1 releases. Security-sensitive users
-should continue to pin the full release commit SHA.
+Add a workflow at `.github/workflows/complexity-analysis.yml` in the repository you want to analyze. **This Action is not yet published to GitHub Marketplace.** Before the first stable release, replace `REVIEWED_FULL_40_CHARACTER_SHA` with the full 40-character SHA of a commit you have reviewed, and change `MySolution.slnx` to your actual project or solution file. The placeholder is intentionally not executable.
 
 ```yaml
+name: Complexity Analysis
+
+on:
+  pull_request:
+
 permissions:
   contents: read
 
-steps:
-  - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-    with:
-      persist-credentials: false
-  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
-    with:
-      path: MySolution.slnx
+jobs:
+  complexity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Analyze C# complexity
+        uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
+        with:
+          path: MySolution.slnx
 ```
+
+**After the first public release:** the GitHub Marketplace listing will provide **Use latest version**. You can then reference the immutable `@v1.0.0` tag or the maintained compatible `@v1` tag; neither tag exists yet. For stronger supply-chain reproducibility, pin the reviewed release commit SHA. The [publication instructions](docs/marketplace.md) explain what the owner must complete to make the Marketplace listing available.
 
 Validated workflow examples:
 
@@ -88,9 +100,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # Replace this placeholder with a reviewed full commit SHA.
+      # Replace this placeholder with a reviewed full 40-character commit SHA.
       - id: complexity
-        uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+        uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
         with:
           path: My Solution.slnx
           tool-version: 1.0.1
@@ -192,7 +204,7 @@ steps:
   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     with:
       persist-credentials: false
-  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+  - uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
     with:
       path: MySolution.slnx
       compare-with-base: "true"

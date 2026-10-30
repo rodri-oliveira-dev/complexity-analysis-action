@@ -25,6 +25,21 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(result["categories"], ["code-quality", "continuous-integration"])
         self.assertFalse(result["marketplacePublished"])
 
+    def test_prepublication_installation_is_discoverable_and_honest(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        portuguese = (ROOT / "README.pt-BR.md").read_text(encoding="utf-8")
+        marketplace = (ROOT / "docs" / "marketplace.md").read_text(encoding="utf-8")
+        self.assertIn("[![GitHub Action]", readme.split("## Overview", 1)[0])
+        self.assertIn("## Quick start", readme)
+        self.assertIn(".github/workflows/complexity-analysis.yml", readme)
+        self.assertIn("@REVIEWED_FULL_40_CHARACTER_SHA", readme)
+        self.assertNotIn("@0000000000000000000000000000000000000000", readme)
+        self.assertIn("not yet published to GitHub Marketplace", readme)
+        self.assertIn("Use latest version", readme)
+        self.assertIn("[![GitHub Action]", portuguese)
+        self.assertIn("Use latest version", portuguese)
+        self.assertIn("Publish this Action to the GitHub Marketplace", marketplace)
+
     def test_latest_required_run_wins(self):
         runs = [
             {"name": "CI", "conclusion": "success", "created_at": "2026-01-01T00:00:00Z"},
