@@ -36,6 +36,7 @@ export BaseIntermediateOutputPath="$analysis_temp/intermediate/\$(MSBuildProject
 export MSBuildProjectExtensionsPath="$analysis_temp/intermediate/\$(MSBuildProjectName)/"
 export BaseOutputPath="$analysis_temp/output/\$(MSBuildProjectName)/"
 export NUGET_PACKAGES="$analysis_temp/packages"
+mkdir -p "$analysis_temp/home" "$analysis_temp/tmp"
 
 common_arguments=()
 
@@ -68,9 +69,28 @@ run_cli() {
   local format="$1"
   local output_path="$2"
   local arguments=(analyze "$isolated_analysis_path" "${common_arguments[@]}" --format "$format" --output "$output_path")
+  local safe_environment=(
+    env -i
+    "PATH=$PATH"
+    "HOME=$analysis_temp/home"
+    "TMPDIR=$analysis_temp/tmp"
+    "LANG=${LANG:-C.UTF-8}"
+    "BaseIntermediateOutputPath=$BaseIntermediateOutputPath"
+    "MSBuildProjectExtensionsPath=$MSBuildProjectExtensionsPath"
+    "BaseOutputPath=$BaseOutputPath"
+    "NUGET_PACKAGES=$NUGET_PACKAGES"
+    "DOTNET_CLI_TELEMETRY_OPTOUT=1"
+    "DOTNET_NOLOGO=1"
+  )
+  [[ -n "${DOTNET_ROOT:-}" ]] && safe_environment+=("DOTNET_ROOT=$DOTNET_ROOT")
+  [[ -n "${DOTNET_HOST_PATH:-}" ]] && safe_environment+=("DOTNET_HOST_PATH=$DOTNET_HOST_PATH")
+  [[ -n "${COMPLEXITY_ACTION_TEST_EXIT_CODE:-}" ]] &&
+    safe_environment+=("COMPLEXITY_ACTION_TEST_EXIT_CODE=$COMPLEXITY_ACTION_TEST_EXIT_CODE")
+  [[ -n "${COMPLEXITY_ACTION_TEST_INVOCATIONS:-}" ]] &&
+    safe_environment+=("COMPLEXITY_ACTION_TEST_INVOCATIONS=$COMPLEXITY_ACTION_TEST_INVOCATIONS")
   (
     cd "$analysis_workspace"
-    "$TOOL_COMMAND" "${arguments[@]}"
+    "${safe_environment[@]}" "$TOOL_COMMAND" "${arguments[@]}"
   )
 }
 

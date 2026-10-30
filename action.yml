@@ -58,6 +58,26 @@ inputs:
     description: Upload the generated SARIF report to GitHub Code Scanning.
     required: false
     default: "false"
+  compare-with-base:
+    description: Generate snapshots and compare the current revision with the PR base or base-ref.
+    required: false
+    default: "false"
+  base-ref:
+    description: Optional explicit Git commit or ref to use instead of the pull request base revision.
+    required: false
+    default: ""
+  fail-on-regression:
+    description: Fail the Action when the CLI reports one or more proven regressions.
+    required: false
+    default: "false"
+  baseline-path:
+    description: Optional existing complexity snapshot JSON to use instead of generating a baseline revision snapshot.
+    required: false
+    default: ""
+  comparison-output:
+    description: Optional comparison JSON path within the workspace. Defaults to comparison.json in output-directory.
+    required: false
+    default: ""
 
 outputs:
   report-path:
@@ -75,6 +95,21 @@ outputs:
   tool-version:
     description: Exact ComplexityAnalysis.Tool version used by the Action.
     value: ${{ steps.validate.outputs.tool-version }}
+  baseline-report-path:
+    description: Absolute path reserved for the preserved baseline snapshot.
+    value: ${{ steps.validate.outputs.baseline-report-path }}
+  current-report-path:
+    description: Absolute path reserved for the current revision snapshot.
+    value: ${{ steps.validate.outputs.current-report-path }}
+  comparison-report-path:
+    description: Absolute path reserved for the JSON comparison report.
+    value: ${{ steps.validate.outputs.comparison-report-path }}
+  regression-count:
+    description: Number of proven regression findings; zero when comparison was not completed.
+    value: ${{ steps.compare.outputs.regression-count }}
+  comparison-status:
+    description: Comparison result (not-requested, no-regressions, regressions-detected, unavailable, or failed).
+    value: ${{ steps.compare.outputs.comparison-status }}
 
 runs:
   using: composite
@@ -97,6 +132,12 @@ runs:
         INPUT_MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         INPUT_FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
         INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        INPUT_COMPARE_WITH_BASE: ${{ inputs.compare-with-base }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+        INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
+        INPUT_COMPARISON_OUTPUT: ${{ inputs.comparison-output }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
       run: '"$ACTION_PATH/scripts/validate-inputs.sh"'
 
     - name: Set up .NET 10
@@ -137,6 +178,31 @@ runs:
         TOOL_COMMAND: ${{ steps.install.outputs.tool-command }}
         RUNNER_TEMP: ${{ runner.temp }}
       run: '"$ACTION_PATH/scripts/run-analysis.sh"'
+
+    - name: Compare with baseline
+      id: compare
+      if: ${{ always() && steps.validate.outcome == 'success' && steps.install.outcome == 'success' }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        WORKSPACE: ${{ github.workspace }}
+        RUNNER_TEMP: ${{ runner.temp }}
+        TOOL_COMMAND: ${{ steps.install.outputs.tool-command }}
+        ANALYSIS_STATUS: ${{ steps.analyze.outputs.analysis-status }}
+        ANALYSIS_RELATIVE_PATH: ${{ steps.validate.outputs.analysis-relative-path }}
+        COMPARISON_REQUESTED: ${{ steps.validate.outputs.comparison-requested }}
+        BASELINE_INPUT_PATH: ${{ steps.validate.outputs.baseline-input-path }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        COMPARISON_SARIF_PATH: ${{ steps.validate.outputs.comparison-sarif-path }}
+        BASE_REF: ${{ inputs.base-ref }}
+        INCLUDE_GENERATED: ${{ inputs.include-generated }}
+        DETECT_DUPLICATES: ${{ inputs.detect-duplicates }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: '"$ACTION_PATH/scripts/run-comparison.sh"'
 
     - name: Validate SARIF for Code Scanning
       id: validate-sarif
@@ -189,6 +255,12 @@ runs:
         MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
         MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         WORKSPACE: ${{ github.workspace }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        REGRESSION_COUNT: ${{ steps.compare.outputs.regression-count }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
       run: 'python3 "$ACTION_PATH/scripts/write-summary.py"'
 
     - name: Apply analysis result
@@ -201,4 +273,7 @@ runs:
         UPLOAD_SARIF: ${{ inputs.upload-sarif }}
         SARIF_VALIDATION_OUTCOME: ${{ steps.validate-sarif.outcome }}
         SARIF_UPLOAD_OUTCOME: ${{ steps.upload-sarif.outcome }}
+        COMPARISON_REQUESTED: ${{ steps.validate.outputs.comparison-requested }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
       run: '"$ACTION_PATH/scripts/apply-result.sh"'

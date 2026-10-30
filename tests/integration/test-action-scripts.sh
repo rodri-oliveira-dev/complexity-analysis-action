@@ -30,6 +30,10 @@ env \
   INPUT_UPLOAD_SARIF=false \
   "$repo_root/scripts/validate-inputs.sh"
 grep -F "analysis-path=$workspace/Sample Project/Sample Project.csproj" "$validation_output" >/dev/null
+grep -F "baseline-report-path=$workspace/reports with spaces/baseline.json" "$validation_output" >/dev/null
+grep -F "current-report-path=$workspace/reports with spaces/current.json" "$validation_output" >/dev/null
+grep -F "comparison-report-path=$workspace/reports with spaces/comparison.json" "$validation_output" >/dev/null
+grep -Fx 'comparison-requested=false' "$validation_output" >/dev/null
 
 injection_output="$test_root/injection-output"
 env \
@@ -65,6 +69,34 @@ if env \
   fail ".git output path was accepted"
 fi
 
+if env \
+  RUNNER_OS=Linux GITHUB_EVENT_NAME=pull_request_target \
+  GITHUB_WORKSPACE="$workspace" GITHUB_OUTPUT="$test_root/target-output" \
+  INPUT_PATH="Sample Project/Sample Project.csproj" INPUT_TOOL_VERSION=1.0.0 INPUT_OUTPUT_DIRECTORY=reports \
+  INPUT_INCLUDE_GENERATED=false INPUT_DETECT_DUPLICATES=false \
+  INPUT_FAIL_ON_QUALITY_GATE=true INPUT_UPLOAD_SARIF=false \
+  "$repo_root/scripts/validate-inputs.sh"; then
+  fail "pull_request_target was accepted"
+fi
+
+if env \
+  RUNNER_OS=Linux GITHUB_WORKSPACE="$workspace" GITHUB_OUTPUT="$test_root/ref-output" \
+  INPUT_PATH="Sample Project/Sample Project.csproj" INPUT_TOOL_VERSION=1.0.0 INPUT_OUTPUT_DIRECTORY=reports \
+  INPUT_INCLUDE_GENERATED=false INPUT_DETECT_DUPLICATES=false INPUT_COMPARE_WITH_BASE=true \
+  INPUT_BASE_REF='--upload-pack=malicious' INPUT_FAIL_ON_QUALITY_GATE=true INPUT_UPLOAD_SARIF=false \
+  "$repo_root/scripts/validate-inputs.sh"; then
+  fail "unsafe base-ref was accepted"
+fi
+
+if env \
+  RUNNER_OS=Linux GITHUB_WORKSPACE="$workspace" GITHUB_OUTPUT="$test_root/regression-input-output" \
+  INPUT_PATH="Sample Project/Sample Project.csproj" INPUT_TOOL_VERSION=1.0.0 INPUT_OUTPUT_DIRECTORY=reports \
+  INPUT_INCLUDE_GENERATED=false INPUT_DETECT_DUPLICATES=false INPUT_FAIL_ON_REGRESSION=true \
+  INPUT_FAIL_ON_QUALITY_GATE=true INPUT_UPLOAD_SARIF=false \
+  "$repo_root/scripts/validate-inputs.sh"; then
+  fail "fail-on-regression without a comparison source was accepted"
+fi
+
 fake_cli="$repo_root/tests/integration/fake-complexity-analysis.sh"
 chmod +x "$fake_cli"
 report="$test_root/report with spaces.json"
@@ -96,15 +128,17 @@ run_analysis() {
     MAX_METHOD_NLOC="" \
     MAX_DUPLICATE_RATE="" \
     HAS_THRESHOLDS="$has_thresholds" \
-    FAKE_EXIT_CODE="$exit_code" \
-    FAKE_INVOCATIONS="$test_root/invocations" \
+    COMPLEXITY_ACTION_TEST_EXIT_CODE="$exit_code" \
+    COMPLEXITY_ACTION_TEST_INVOCATIONS="$test_root/invocations" \
+    GITHUB_TOKEN=must-not-reach-analysis \
+    COMPLEXITY_ACTION_TEST_SECRET=must-not-reach-analysis \
     "$repo_root/scripts/run-analysis.sh"
 }
 
 run_analysis 0 false "$test_root/success-output"
 grep -Fx 'analysis-status=success' "$test_root/success-output" >/dev/null
 grep -Fx 'quality-gate-status=not-configured' "$test_root/success-output" >/dev/null
-grep -F '|json|true' "$test_root/invocations" >/dev/null
+grep -F 'analyze|' "$test_root/invocations" | grep -F '|json|true|false' >/dev/null
 python3 "$repo_root/scripts/validate-report.py" json "$report"
 python3 "$repo_root/scripts/validate-report.py" sarif "$sarif"
 
@@ -127,8 +161,25 @@ if env ANALYSIS_EXIT_CODE=2 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=false \
   fail "blocking quality-gate failure was accepted"
 fi
 env ANALYSIS_EXIT_CODE=2 FAIL_ON_QUALITY_GATE=false UPLOAD_SARIF=false \
-  SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
+  SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped COMPARISON_REQUESTED=false \
   "$repo_root/scripts/apply-result.sh"
+
+env ANALYSIS_EXIT_CODE=2 FAIL_ON_QUALITY_GATE=false UPLOAD_SARIF=false \
+  SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
+  COMPARISON_REQUESTED=true COMPARISON_STATUS=regressions-detected FAIL_ON_REGRESSION=false \
+  "$repo_root/scripts/apply-result.sh"
+if env ANALYSIS_EXIT_CODE=0 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=false \
+  SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
+  COMPARISON_REQUESTED=true COMPARISON_STATUS=regressions-detected FAIL_ON_REGRESSION=true \
+  "$repo_root/scripts/apply-result.sh"; then
+  fail "blocking regression failure was accepted"
+fi
+if env ANALYSIS_EXIT_CODE=2 FAIL_ON_QUALITY_GATE=true UPLOAD_SARIF=false \
+  SARIF_VALIDATION_OUTCOME=skipped SARIF_UPLOAD_OUTCOME=skipped \
+  COMPARISON_REQUESTED=true COMPARISON_STATUS=no-regressions FAIL_ON_REGRESSION=false \
+  "$repo_root/scripts/apply-result.sh"; then
+  fail "quality-gate failure was conflated with a passing regression gate"
+fi
 
 run_analysis 1 false "$test_root/error-output"
 grep -Fx 'analysis-status=failed' "$test_root/error-output" >/dev/null

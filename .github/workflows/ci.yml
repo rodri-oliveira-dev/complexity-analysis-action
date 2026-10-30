@@ -31,3 +31,6 @@ jobs:
       - name: Test validation, execution, failures, outputs, and cancellation
         shell: bash
         run: bash tests/integration/test-action-scripts.sh
+      - name: Test baseline resolution and comparison orchestration
+        shell: bash
+        run: bash tests/integration/test-comparison-scripts.sh

@@ -12,6 +12,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  pull-request-regression:
+    name: Published CLI / pull-request regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Set up .NET 10
+        # setup-dotnet v5.0.0
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d
+        with:
+          dotnet-version: 10.0.403
+      - name: Exercise deterministic snapshots and a proven regression
+        shell: bash
+        run: bash tests/integration/test-pr-regression-e2e.sh
+
   published-cli-success:
     name: Published CLI / ${{ matrix.entry-kind }}
     runs-on: ubuntu-latest

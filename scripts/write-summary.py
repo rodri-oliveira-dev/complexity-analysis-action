@@ -41,6 +41,10 @@ def overall_status() -> str:
         return "Failed: SARIF did not pass Code Scanning validation"
     if env("UPLOAD_SARIF") == "true" and env("UPLOAD_OUTCOME") == "failure":
         return "Failed: SARIF upload was rejected"
+    if env("COMPARISON_STATUS") in ("unavailable", "failed"):
+        return "Failed: requested comparison unavailable"
+    if env("COMPARISON_STATUS") == "regressions-detected" and env("FAIL_ON_REGRESSION") == "true":
+        return "Failed: complexity regression"
     if code == "0":
         return "Succeeded"
     if code == "2":
@@ -91,6 +95,8 @@ def main() -> None:
         f"| CLI version | `{cell(env('TOOL_VERSION', 'unknown'))}` |",
         f"| Analysis status | {cell(env('ANALYSIS_STATUS', 'unknown'))} |",
         f"| Quality-gate status | {cell(env('QUALITY_GATE_STATUS', 'unknown'))} |",
+        f"| Comparison status | {cell(env('COMPARISON_STATUS', 'not-requested'))} |",
+        f"| Proven regressions | {cell(env('REGRESSION_COUNT', '0'))} |",
         f"| Overall execution | {cell(overall_status())} |",
         "",
         "## Configured thresholds",
@@ -136,6 +142,9 @@ def main() -> None:
             f"- JSON: `{cell(display_path(env('REPORT_PATH')))}`",
             f"- SARIF 2.1.0: `{cell(display_path(env('SARIF_PATH')))}`",
             f"- Code Scanning upload: {cell(upload_status)}",
+            f"- Baseline snapshot: `{cell(display_path(env('BASELINE_REPORT_PATH')))}`",
+            f"- Current snapshot: `{cell(display_path(env('CURRENT_REPORT_PATH')))}`",
+            f"- Comparison JSON: `{cell(display_path(env('COMPARISON_REPORT_PATH')))}`",
             "",
         )
     )

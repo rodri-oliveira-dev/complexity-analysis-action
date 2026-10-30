@@ -10,6 +10,11 @@ set -euo pipefail
 : "${INPUT_MAX_DUPLICATE_RATE:=}"
 : "${INPUT_FAIL_ON_QUALITY_GATE:=true}"
 : "${INPUT_UPLOAD_SARIF:=false}"
+: "${INPUT_COMPARE_WITH_BASE:=false}"
+: "${INPUT_BASE_REF:=}"
+: "${INPUT_FAIL_ON_REGRESSION:=false}"
+: "${INPUT_BASELINE_PATH:=}"
+: "${INPUT_COMPARISON_OUTPUT:=}"
 
 fail() {
   printf '::error title=Complexity Analysis input error::%s\n' "$1"
@@ -46,6 +51,8 @@ is_within_workspace() {
 
 [[ -n "${GITHUB_WORKSPACE:-}" ]] || fail "GITHUB_WORKSPACE is not available."
 [[ -n "${GITHUB_OUTPUT:-}" ]] || fail "GITHUB_OUTPUT is not available."
+[[ "${GITHUB_EVENT_NAME:-}" != "pull_request_target" ]] ||
+  fail "pull_request_target is not supported because project evaluation must not run in a privileged PR context."
 workspace="$(realpath -e -- "$GITHUB_WORKSPACE")" || fail "GITHUB_WORKSPACE does not exist."
 
 for value_name in INPUT_PATH INPUT_TOOL_VERSION INPUT_OUTPUT_DIRECTORY; do
@@ -66,6 +73,30 @@ semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]
   fail "fail-on-quality-gate must be either 'true' or 'false'."
 [[ "$INPUT_UPLOAD_SARIF" == "true" || "$INPUT_UPLOAD_SARIF" == "false" ]] ||
   fail "upload-sarif must be either 'true' or 'false'."
+[[ "$INPUT_COMPARE_WITH_BASE" == "true" || "$INPUT_COMPARE_WITH_BASE" == "false" ]] ||
+  fail "compare-with-base must be either 'true' or 'false'."
+[[ "$INPUT_FAIL_ON_REGRESSION" == "true" || "$INPUT_FAIL_ON_REGRESSION" == "false" ]] ||
+  fail "fail-on-regression must be either 'true' or 'false'."
+
+for value_name in INPUT_BASE_REF INPUT_BASELINE_PATH INPUT_COMPARISON_OUTPUT; do
+  value="${!value_name:-}"
+  contains_line_break "$value" && fail "${value_name#INPUT_} must not contain line breaks."
+done
+
+if [[ -n "$INPUT_BASE_REF" ]]; then
+  [[ "$INPUT_COMPARE_WITH_BASE" == "true" ]] ||
+    fail "base-ref requires compare-with-base=true."
+  [[ "$INPUT_BASE_REF" != -* && "$INPUT_BASE_REF" != *'..'* && "$INPUT_BASE_REF" != *'@{'* ]] ||
+    fail "base-ref is not a safe Git reference."
+  [[ "$INPUT_BASE_REF" =~ ^[0-9A-Za-z._/+@{}-]+$ ]] ||
+    fail "base-ref contains unsupported characters."
+fi
+[[ -z "$INPUT_BASE_REF" || -z "$INPUT_BASELINE_PATH" ]] ||
+  fail "base-ref and baseline-path are mutually exclusive baseline sources."
+if [[ "$INPUT_FAIL_ON_REGRESSION" == "true" ]]; then
+  [[ "$INPUT_COMPARE_WITH_BASE" == "true" || -n "$INPUT_BASELINE_PATH" ]] ||
+    fail "fail-on-regression requires compare-with-base=true or baseline-path."
+fi
 
 threshold_names=(
   INPUT_MAX_COMPLEXITY
@@ -135,6 +166,49 @@ sarif_path="$output_directory/complexity-analysis-report.sarif"
 analysis_relative_path="${analysis_path#"$workspace/"}"
 output_relative_path="${output_directory#"$workspace/"}"
 
+comparison_requested=false
+if [[ "$INPUT_COMPARE_WITH_BASE" == "true" || -n "$INPUT_BASELINE_PATH" ]]; then
+  comparison_requested=true
+fi
+
+baseline_input_path=""
+if [[ -n "$INPUT_BASELINE_PATH" ]]; then
+  baseline_candidate="$(resolve_from_workspace "$INPUT_BASELINE_PATH")"
+  baseline_input_path="$(realpath -e -- "$baseline_candidate" 2>/dev/null)" ||
+    fail "The provided baseline-path does not exist."
+  [[ -f "$baseline_input_path" ]] || fail "baseline-path must reference a JSON file."
+  is_within_workspace "$baseline_input_path" || fail "baseline-path must resolve within GITHUB_WORKSPACE."
+  [[ "${baseline_input_path,,}" == *.json ]] || fail "baseline-path must reference a .json file."
+fi
+
+if [[ -n "$INPUT_COMPARISON_OUTPUT" ]]; then
+  comparison_candidate="$(resolve_from_workspace "$INPUT_COMPARISON_OUTPUT")"
+else
+  comparison_candidate="$output_directory/comparison.json"
+fi
+comparison_path="$(realpath -m -- "$comparison_candidate")" ||
+  fail "Unable to resolve comparison-output."
+is_within_workspace "$comparison_path" || fail "comparison-output must resolve within GITHUB_WORKSPACE."
+[[ "$comparison_path" != "$workspace" && "${comparison_path,,}" == *.json ]] ||
+  fail "comparison-output must reference a .json file."
+[[ "$comparison_path" != "$workspace/.git" && "$comparison_path" != "$workspace/.git/"* ]] ||
+  fail "comparison-output must not be inside the repository's .git directory."
+comparison_parent="$(dirname -- "$comparison_path")"
+mkdir -p -- "$comparison_parent" || fail "Unable to create the comparison-output directory."
+comparison_parent="$(realpath -e -- "$comparison_parent")" ||
+  fail "Unable to resolve the comparison-output directory."
+is_within_workspace "$comparison_parent" ||
+  fail "comparison-output resolves outside GITHUB_WORKSPACE through a symbolic link."
+comparison_path="$comparison_parent/$(basename -- "$comparison_path")"
+
+baseline_report_path="$output_directory/baseline.json"
+current_report_path="$output_directory/current.json"
+comparison_sarif_path="${comparison_path%.json}.sarif"
+for reserved_path in "$report_path" "$sarif_path" "$baseline_report_path" "$current_report_path"; do
+  [[ "$comparison_path" != "$reserved_path" && "$comparison_sarif_path" != "$reserved_path" ]] ||
+    fail "comparison-output conflicts with another report path."
+done
+
 {
   printf 'analysis-path=%s\n' "$analysis_path"
   printf 'analysis-relative-path=%s\n' "$analysis_relative_path"
@@ -143,6 +217,12 @@ output_relative_path="${output_directory#"$workspace/"}"
   printf 'sarif-path=%s\n' "$sarif_path"
   printf 'tool-version=%s\n' "$INPUT_TOOL_VERSION"
   printf 'has-thresholds=%s\n' "$has_thresholds"
+  printf 'comparison-requested=%s\n' "$comparison_requested"
+  printf 'baseline-input-path=%s\n' "$baseline_input_path"
+  printf 'baseline-report-path=%s\n' "$baseline_report_path"
+  printf 'current-report-path=%s\n' "$current_report_path"
+  printf 'comparison-report-path=%s\n' "$comparison_path"
+  printf 'comparison-sarif-path=%s\n' "$comparison_sarif_path"
 } >> "$GITHUB_OUTPUT"
 
 printf 'Validated analysis input: %s\n' "$analysis_path"
