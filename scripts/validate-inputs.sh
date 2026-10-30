@@ -2,6 +2,15 @@
 
 set -euo pipefail
 
+: "${INPUT_MAX_COMPLEXITY:=}"
+: "${INPUT_MAX_CYCLOMATIC_COMPLEXITY:=}"
+: "${INPUT_MAX_COGNITIVE_COMPLEXITY:=}"
+: "${INPUT_MAX_NESTING_DEPTH:=}"
+: "${INPUT_MAX_METHOD_NLOC:=}"
+: "${INPUT_MAX_DUPLICATE_RATE:=}"
+: "${INPUT_FAIL_ON_QUALITY_GATE:=true}"
+: "${INPUT_UPLOAD_SARIF:=false}"
+
 fail() {
   printf '::error title=Complexity Analysis input error::%s\n' "$1"
   exit 1
@@ -52,6 +61,27 @@ semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]
   fail "include-generated must be either 'true' or 'false'."
 [[ "$INPUT_DETECT_DUPLICATES" == "true" || "$INPUT_DETECT_DUPLICATES" == "false" ]] ||
   fail "detect-duplicates must be either 'true' or 'false'."
+[[ "$INPUT_FAIL_ON_QUALITY_GATE" == "true" || "$INPUT_FAIL_ON_QUALITY_GATE" == "false" ]] ||
+  fail "fail-on-quality-gate must be either 'true' or 'false'."
+[[ "$INPUT_UPLOAD_SARIF" == "true" || "$INPUT_UPLOAD_SARIF" == "false" ]] ||
+  fail "upload-sarif must be either 'true' or 'false'."
+
+threshold_names=(
+  INPUT_MAX_COMPLEXITY
+  INPUT_MAX_CYCLOMATIC_COMPLEXITY
+  INPUT_MAX_COGNITIVE_COMPLEXITY
+  INPUT_MAX_NESTING_DEPTH
+  INPUT_MAX_METHOD_NLOC
+  INPUT_MAX_DUPLICATE_RATE
+)
+has_thresholds=false
+for value_name in "${threshold_names[@]}"; do
+  value="${!value_name:-}"
+  contains_line_break "$value" && fail "${value_name#INPUT_} must not contain line breaks."
+  if [[ -n "$value" ]]; then
+    has_thresholds=true
+  fi
+done
 
 input_candidate="$(resolve_from_workspace "$INPUT_PATH")"
 analysis_path="$(realpath -e -- "$input_candidate" 2>/dev/null)" ||
@@ -80,12 +110,16 @@ is_within_workspace "$output_directory" ||
   fail "output-directory resolves outside GITHUB_WORKSPACE through a symbolic link."
 
 report_path="$output_directory/complexity-analysis-report.json"
+sarif_path="$output_directory/complexity-analysis-report.sarif"
 
 {
   printf 'analysis-path=%s\n' "$analysis_path"
   printf 'report-path=%s\n' "$report_path"
+  printf 'sarif-path=%s\n' "$sarif_path"
   printf 'tool-version=%s\n' "$INPUT_TOOL_VERSION"
+  printf 'has-thresholds=%s\n' "$has_thresholds"
 } >> "$GITHUB_OUTPUT"
 
 printf 'Validated analysis input: %s\n' "$analysis_path"
 printf 'Report destination: %s\n' "$report_path"
+printf 'SARIF destination: %s\n' "$sarif_path"

@@ -1,2 +1,4 @@
 artifacts/
 complexity-analysis-reports/
+__pycache__/
+*.py[cod]

@@ -6,6 +6,10 @@ on:
 jobs:
   complexity-analysis:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required only when upload-sarif is true.
+      security-events: write
     steps:
       - uses: actions/checkout@v6
 
@@ -17,3 +21,11 @@ jobs:
           output-directory: artifacts/complexity-analysis
           include-generated: "false"
           detect-duplicates: "false"
+          max-complexity: n_log_n
+          max-cyclomatic-complexity: "15"
+          max-cognitive-complexity: "20"
+          max-nesting-depth: "4"
+          max-method-nloc: "80"
+          max-duplicate-rate: "5"
+          fail-on-quality-gate: "true"
+          upload-sarif: "true"

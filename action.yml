@@ -26,14 +26,52 @@ inputs:
     description: Enable normalized duplicate-code detection.
     required: false
     default: "false"
+  max-complexity:
+    description: Maximum Big-O classification. Empty disables this quality gate.
+    required: false
+    default: ""
+  max-cyclomatic-complexity:
+    description: Maximum cyclomatic complexity. Empty disables this quality gate.
+    required: false
+    default: ""
+  max-cognitive-complexity:
+    description: Maximum cognitive complexity. Empty disables this quality gate.
+    required: false
+    default: ""
+  max-nesting-depth:
+    description: Maximum nesting depth. Empty disables this quality gate.
+    required: false
+    default: ""
+  max-method-nloc:
+    description: Maximum method NLOC. Empty disables this quality gate.
+    required: false
+    default: ""
+  max-duplicate-rate:
+    description: Maximum duplicate rate percentage. Empty disables this quality gate and enables duplicate detection when set.
+    required: false
+    default: ""
+  fail-on-quality-gate:
+    description: Fail the Action when a configured quality gate fails.
+    required: false
+    default: "true"
+  upload-sarif:
+    description: Upload the generated SARIF report to GitHub Code Scanning.
+    required: false
+    default: "false"
 
 outputs:
   report-path:
     description: Absolute path to the generated JSON report.
     value: ${{ steps.validate.outputs.report-path }}
+  sarif-path:
+    description: Absolute path to the generated SARIF 2.1.0 report.
+    value: ${{ steps.validate.outputs.sarif-path }}
   analysis-status:
-    description: Analysis result (success or failed).
+    description: Analysis execution result (success, failed, or canceled).
     value: ${{ steps.analyze.outputs.analysis-status }}
+  quality-gate-status:
+    description: Quality-gate result (not-configured, passed, failed, or unknown).
+    value: ${{ steps.analyze.outputs.quality-gate-status }}
   tool-version:
     description: Exact ComplexityAnalysis.Tool version used by the Action.
     value: ${{ steps.validate.outputs.tool-version }}
@@ -50,6 +88,14 @@ runs:
         INPUT_OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
         INPUT_INCLUDE_GENERATED: ${{ inputs.include-generated }}
         INPUT_DETECT_DUPLICATES: ${{ inputs.detect-duplicates }}
+        INPUT_MAX_COMPLEXITY: ${{ inputs.max-complexity }}
+        INPUT_MAX_CYCLOMATIC_COMPLEXITY: ${{ inputs.max-cyclomatic-complexity }}
+        INPUT_MAX_COGNITIVE_COMPLEXITY: ${{ inputs.max-cognitive-complexity }}
+        INPUT_MAX_NESTING_DEPTH: ${{ inputs.max-nesting-depth }}
+        INPUT_MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
+        INPUT_MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
+        INPUT_FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
+        INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
       run: '"${{ github.action_path }}/scripts/validate-inputs.sh"'
 
     - name: Set up .NET 10
@@ -71,7 +117,77 @@ runs:
       env:
         ANALYSIS_PATH: ${{ steps.validate.outputs.analysis-path }}
         REPORT_PATH: ${{ steps.validate.outputs.report-path }}
+        SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
         INCLUDE_GENERATED: ${{ inputs.include-generated }}
         DETECT_DUPLICATES: ${{ inputs.detect-duplicates }}
+        MAX_COMPLEXITY: ${{ inputs.max-complexity }}
+        MAX_CYCLOMATIC_COMPLEXITY: ${{ inputs.max-cyclomatic-complexity }}
+        MAX_COGNITIVE_COMPLEXITY: ${{ inputs.max-cognitive-complexity }}
+        MAX_NESTING_DEPTH: ${{ inputs.max-nesting-depth }}
+        MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
+        MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
+        HAS_THRESHOLDS: ${{ steps.validate.outputs.has-thresholds }}
         TOOL_DIRECTORY: ${{ steps.install.outputs.tool-directory }}
       run: '"${{ github.action_path }}/scripts/run-analysis.sh"'
+
+    - name: Validate SARIF for Code Scanning
+      id: validate-sarif
+      if: ${{ always() && inputs.upload-sarif == 'true' && steps.analyze.outputs.sarif-valid == 'true' }}
+      shell: bash
+      env:
+        SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
+        WORKSPACE: ${{ github.workspace }}
+      run: >-
+        python3 "${{ github.action_path }}/scripts/validate-report.py"
+        sarif "$SARIF_PATH" --workspace "$WORKSPACE" --code-scanning
+
+    - name: Upload SARIF to GitHub Code Scanning
+      id: upload-sarif
+      if: ${{ always() && inputs.upload-sarif == 'true' && steps.validate-sarif.outcome == 'success' }}
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: ${{ steps.validate.outputs.sarif-path }}
+        checkout_path: ${{ github.workspace }}
+        category: complexity-analysis
+
+    - name: Explain SARIF upload failure
+      if: ${{ always() && inputs.upload-sarif == 'true' && steps.upload-sarif.outcome == 'failure' }}
+      shell: bash
+      run: >-
+        echo "::error title=Complexity Analysis SARIF upload failed::GitHub Code Scanning rejected the upload. Grant only 'contents: read' and 'security-events: write', and confirm Code Scanning is available for this repository. See the upload step for the server response."
+
+    - name: Write Job Summary
+      if: ${{ always() && steps.validate.outcome == 'success' }}
+      shell: bash
+      env:
+        ANALYSIS_PATH: ${{ steps.validate.outputs.analysis-path }}
+        REPORT_PATH: ${{ steps.validate.outputs.report-path }}
+        SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
+        TOOL_VERSION: ${{ steps.validate.outputs.tool-version }}
+        ANALYSIS_STATUS: ${{ steps.analyze.outputs.analysis-status }}
+        QUALITY_GATE_STATUS: ${{ steps.analyze.outputs.quality-gate-status }}
+        ANALYSIS_EXIT_CODE: ${{ steps.analyze.outputs.analysis-exit-code }}
+        FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
+        UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        UPLOAD_OUTCOME: ${{ steps.upload-sarif.outcome }}
+        SARIF_VALIDATION_OUTCOME: ${{ steps.validate-sarif.outcome }}
+        MAX_COMPLEXITY: ${{ inputs.max-complexity }}
+        MAX_CYCLOMATIC_COMPLEXITY: ${{ inputs.max-cyclomatic-complexity }}
+        MAX_COGNITIVE_COMPLEXITY: ${{ inputs.max-cognitive-complexity }}
+        MAX_NESTING_DEPTH: ${{ inputs.max-nesting-depth }}
+        MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
+        MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
+        WORKSPACE: ${{ github.workspace }}
+      run: 'python3 "${{ github.action_path }}/scripts/write-summary.py"'
+
+    - name: Apply analysis result
+      if: ${{ always() && steps.validate.outcome == 'success' }}
+      shell: bash
+      env:
+        ANALYSIS_EXIT_CODE: ${{ steps.analyze.outputs.analysis-exit-code }}
+        FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
+        UPLOAD_SARIF: ${{ inputs.upload-sarif }}
+        SARIF_VALIDATION_OUTCOME: ${{ steps.validate-sarif.outcome }}
+        SARIF_UPLOAD_OUTCOME: ${{ steps.upload-sarif.outcome }}
+      run: '"${{ github.action_path }}/scripts/apply-result.sh"'
