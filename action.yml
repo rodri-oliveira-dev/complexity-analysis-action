@@ -78,6 +78,10 @@ inputs:
     description: Optional comparison JSON path within the workspace. Defaults to comparison.json in output-directory.
     required: false
     default: ""
+  comment-on-pr:
+    description: "Publish or update one bot-authored Pull Request summary. Requires pull-requests: write."
+    required: false
+    default: "false"
 
 outputs:
   report-path:
@@ -110,6 +114,9 @@ outputs:
   comparison-status:
     description: Comparison result (not-requested, no-regressions, regressions-detected, unavailable, or failed).
     value: ${{ steps.compare.outputs.comparison-status }}
+  pr-report-path:
+    description: Absolute path to the validated structured Pull Request report; populated after a completed PR comparison.
+    value: ${{ steps.validate.outputs.pr-report-path }}
 
 runs:
   using: composite
@@ -137,6 +144,7 @@ runs:
         INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
         INPUT_BASELINE_PATH: ${{ inputs.baseline-path }}
         INPUT_COMPARISON_OUTPUT: ${{ inputs.comparison-output }}
+        INPUT_COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
       run: '"$ACTION_PATH/scripts/validate-inputs.sh"'
 
@@ -204,6 +212,53 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: '"$ACTION_PATH/scripts/run-comparison.sh"'
 
+    - name: Build validated Pull Request report
+      id: pr-report
+      if: ${{ always() && github.event_name == 'pull_request' && (steps.compare.outputs.comparison-status == 'no-regressions' || steps.compare.outputs.comparison-status == 'regressions-detected') }}
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        WORKSPACE: ${{ github.workspace }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_WORKFLOW: ${{ github.workflow }}
+        ANALYSIS_RELATIVE_PATH: ${{ steps.validate.outputs.analysis-relative-path }}
+        REPORT_PATH: ${{ steps.validate.outputs.report-path }}
+        SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
+        BASELINE_REPORT_PATH: ${{ steps.validate.outputs.baseline-report-path }}
+        CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
+        COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
+        REGRESSION_COUNT: ${{ steps.compare.outputs.regression-count }}
+        QUALITY_GATE_STATUS: ${{ steps.analyze.outputs.quality-gate-status }}
+      run: 'python3 "$ACTION_PATH/scripts/build-pr-report.py"'
+
+    - name: Publish Pull Request report
+      id: publish-pr-report
+      if: ${{ always() && inputs.comment-on-pr == 'true' && steps.pr-report.outcome == 'success' }}
+      continue-on-error: true
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        EXPECTED_REPOSITORY: ${{ github.repository }}
+        EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
+        EXPECTED_RUN_ID: ${{ github.run_id }}
+        EXPECTED_WORKFLOW_NAME: ${{ github.workflow }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: 'python3 "$ACTION_PATH/scripts/publish-pr-comment.py"'
+
+    - name: Explain Pull Request publication failure
+      if: ${{ always() && inputs.comment-on-pr == 'true' && steps.publish-pr-report.outcome == 'failure' }}
+      shell: bash
+      run: >-
+        echo "::warning title=Pull Request comment not published::The validated report remains available, but GitHub did not permit publication. Grant only 'pull-requests: write' to a trusted publishing job; fork pull_request tokens are normally read-only."
+
     - name: Validate SARIF for Code Scanning
       id: validate-sarif
       if: ${{ always() && inputs.upload-sarif == 'true' && steps.analyze.outputs.sarif-valid == 'true' }}
@@ -261,6 +316,12 @@ runs:
         CURRENT_REPORT_PATH: ${{ steps.validate.outputs.current-report-path }}
         COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
         FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        BASE_REVISION: ${{ steps.compare.outputs.base-revision }}
+        HEAD_REVISION: ${{ steps.compare.outputs.head-revision }}
+        PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
+        PR_REPORT_OUTCOME: ${{ steps.pr-report.outcome }}
+        COMMENT_ON_PR: ${{ inputs.comment-on-pr }}
+        COMMENT_OUTCOME: ${{ steps.publish-pr-report.outcome }}
       run: 'python3 "$ACTION_PATH/scripts/write-summary.py"'
 
     - name: Apply analysis result

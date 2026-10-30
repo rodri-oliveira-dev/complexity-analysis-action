@@ -69,7 +69,7 @@ if [[ "$command" == "compare" ]]; then
     exit "$COMPLEXITY_ACTION_TEST_COMPARE_EXIT_CODE"
   fi
   if [[ "$format" == "json" ]]; then
-    printf '{"SchemaVersion":"complexity-comparison/1.0","BaselineSchemaVersion":"complexity-snapshot/1.0","CurrentSchemaVersion":"complexity-snapshot/1.0","Findings":[{"StableId":"M:Sample.Work()","Classification":"%s","Severity":"note","Reason":"controlled test finding"}]}\n' \
+    printf '{"SchemaVersion":"complexity-comparison/1.0","BaselineSchemaVersion":"complexity-snapshot/1.0","CurrentSchemaVersion":"complexity-snapshot/1.0","Findings":[{"StableId":"M:Sample.Work()","Classification":"%s","Severity":"note","Reason":"controlled test finding","Before":"O(n)","After":"O(n^2)","Location":{"FilePath":"Sample.cs","StartLine":10},"Evidence":{"Steps":[{"Kind":"loop","Estimate":{"Status":"known"}}]}}]}\n' \
       "$classification" > "$output"
   elif [[ "$format" == "sarif" ]]; then
     printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"ComplexityAnalysis.Tool"}},"results":[]}]}\n' > "$output"

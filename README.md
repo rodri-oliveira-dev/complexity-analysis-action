@@ -16,8 +16,10 @@ CLI; it does not copy or reimplement the analysis engine.
   access to NuGet.org. The Action installs the pinned .NET 10 SDK itself.
 - A Git checkout containing a `.csproj`, `.sln`, or `.slnx` entry point. Git is
   required when baseline comparison is enabled.
-- `contents: read` is the only workflow permission required for local reports.
-  SARIF upload additionally requires `security-events: write`.
+- `contents: read` is the only workflow permission required for local reports
+  and regression checks. SARIF upload additionally requires
+  `security-events: write`; direct PR comments additionally require
+  `pull-requests: write`.
 
 ## Usage
 
@@ -53,6 +55,7 @@ jobs:
           max-duplicate-rate: "5"
           compare-with-base: "true"
           fail-on-regression: "true"
+          comment-on-pr: "false"
 
       # actions/upload-artifact v5.0.0
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
@@ -83,6 +86,7 @@ jobs:
 | `fail-on-regression` | No | `false` | Fail only when the CLI proves at least one regression. Requires a comparison source. |
 | `baseline-path` | No | unset | Existing `complexity-snapshot/1.0` JSON inside the workspace. Supplying it enables comparison and replaces Git baseline generation. |
 | `comparison-output` | No | `<output-directory>/comparison.json` | Workspace JSON path for comparison results. |
+| `comment-on-pr` | No | `false` | Create or update one bot-authored PR report after a completed comparison. Requires a `pull_request` event and `pull-requests: write`. |
 
 Boolean inputs accept only the lowercase strings `true` and `false`.
 Thresholds are never enabled implicitly. Supported Big-O values are `constant`,
@@ -103,12 +107,61 @@ Thresholds are never enabled implicitly. Supported Big-O values are `constant`,
 | `comparison-report-path` | Absolute path to `comparison.json`. |
 | `regression-count` | Count of CLI findings classified exactly as `regression`; `0` when comparison does not complete. |
 | `comparison-status` | `not-requested`, `no-regressions`, `regressions-detected`, `unavailable`, or `failed`. |
+| `pr-report-path` | Absolute path reserved for validated `pr-report.json`; generated for completed PR comparisons even when commenting is disabled. |
 
-Both reports are generated before a configured quality-gate failure is applied.
-The Job Summary shows the analyzed entry point, CLI version, configured
-thresholds, results reported by the CLI, overall status, and report paths. To
+Reports are generated before a configured quality-gate or regression failure is
+applied. The Job Summary shows base/head revisions, proven regressions,
+improvements, reliably equivalent members, comparison limitations,
+quality-gate state, overall status, and report paths whether or not commenting
+is enabled. To
 retain the files after the job, upload either output with
 `actions/upload-artifact` as shown above.
+
+## Reporting modes
+
+The capabilities are independently opt-in:
+
+| Mode | Configuration | Required permissions | Result |
+| --- | --- | --- | --- |
+| Analysis only | Defaults, optionally with quality gates | `contents: read` | JSON, SARIF, and Job Summary; no comment. |
+| Regression check | `compare-with-base: "true"`, optionally `fail-on-regression: "true"` | `contents: read` | Snapshots, comparison reports, summary, and optional failure; no write permission. |
+| Direct PR feedback | Comparison plus `comment-on-pr: "true"` | `contents: read`, `pull-requests: write` | The same reports plus one idempotently updated comment. |
+| Isolated fork feedback | Read-only analysis workflow plus `workflow_run` publisher | Analysis: `contents: read`; publisher: `actions: read`, `pull-requests: write` | The publisher consumes only the validated report artifact and never checks out or executes PR code. |
+
+### Direct PR comment
+
+Use direct comments for trusted same-repository PRs. Users who do not request a
+comment do not need `pull-requests: write`.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    with:
+      persist-credentials: false
+  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+    with:
+      path: MySolution.slnx
+      compare-with-base: "true"
+      fail-on-regression: "false"
+      comment-on-pr: "true"
+```
+
+The Markdown starts with a stable hidden marker. Publication uses only
+`github.token`, searches the PR once, and updates only a marked comment owned by
+the canonical `github-actions[bot]` identity. A copied marker in another user or
+bot's comment is ignored. The comment displays at most ten regressions and points to the
+workflow run and available report paths; the full deterministic result remains
+in `comparison.json`. Repeated runs update the same comment instead of creating
+notification spam.
+
+Only a completed, validated comparison is published as findings. Execution,
+configuration, metadata-validation, and API failures are emitted as workflow
+errors or warnings and remain visibly separate from regression counts; the
+Action never turns a missing report into "no regressions."
 
 ## Pull-request baselines
 
@@ -137,6 +190,38 @@ produce complete compatible report data, the status is `unavailable` or
 incomparable complexity, added/removed members, and ambiguous identities stay
 non-regressions according to the CLI and remain visible in `comparison.json`.
 
+### Secure publication for fork PRs
+
+Fork `pull_request` workflows normally receive a read-only token, so direct
+commenting reports a warning and leaves `pr-report.json` available. Do not grant
+write permissions or secrets to that analysis job. For comments on fork PRs,
+use the two-workflow pattern in
+[`examples/secure-pr-analysis.yml`](examples/secure-pr-analysis.yml) and
+[`examples/secure-pr-publish.yml`](examples/secure-pr-publish.yml):
+
+1. The `pull_request` workflow analyzes with `contents: read`, keeps
+   `comment-on-pr: "false"`, and uploads only `pr-report.json` under a fixed
+   artifact name.
+2. A `workflow_run` job downloads that exact artifact from the exact triggering
+   run and invokes the publication-only companion action at a reviewed full
+   commit SHA. It never checks out the PR revision.
+3. `publish-pr-report` validates the schema, size, repository, PR number, head
+   SHA, workflow run ID, workflow name, completed-comparison state, counts, and
+   evidence before making an API request. A mismatch stops publication.
+
+Artifact report text is still untrusted. Markdown values are HTML-escaped,
+table delimiters and line breaks are neutralized, HTML comment injection is
+prevented, details are capped, and repository/API path components are encoded.
+The publisher can only create or edit an issue comment on the validated PR. It
+does not execute the artifact, invoke the analysis CLI, restore packages, or
+load project files.
+
+Never run the main analysis Action under `pull_request_target`: loading a .NET
+project may execute repository-controlled MSBuild logic. The Action rejects
+that event. A privileged `workflow_run` publisher is safe only when it consumes
+the bounded structured report and trusted event metadata as shown; do not add a
+checkout of the PR head or shell commands derived from artifact content.
+
 ## Quality-gate behavior
 
 The Action preserves the CLI exit-code contract and does not evaluate metric
@@ -157,6 +242,13 @@ report retains thresholds and `fail-on-quality-gate`; comparison snapshots omit
 thresholds and `fail-on-regression` applies only to proven CLI regression
 findings. A project can exceed a threshold without adding a regression, or add
 a regression while remaining below every threshold.
+
+An absolute quality gate compares the current report to a configured maximum
+(for example, cyclomatic complexity 15). Regression detection compares the
+same member across baseline and head using the CLI's compatible evidence and
+ordering rules. Missing, unknown, ambiguous, or incompatible evidence is a
+comparison limitation and never becomes a proven regression or a fabricated
+metric.
 
 ## Optional Code Scanning upload
 
@@ -185,8 +277,9 @@ the local reports available. See GitHub's
 for repository availability and ingestion limits.
 
 For pull requests from forks, GitHub may restrict write permissions granted to
-`GITHUB_TOKEN`; keep `upload-sarif` disabled for an untrusted fork workflow or
-perform the upload in an appropriately secured workflow.
+`GITHUB_TOKEN`; keep `upload-sarif` disabled for an untrusted fork workflow.
+The PR-report artifact handoff is intentionally limited to comments and does
+not grant the publisher `security-events: write`.
 
 Never use `pull_request_target` to check out and analyze pull-request code. The
 CLI loads project/solution content through MSBuild, so repository-controlled
@@ -227,9 +320,11 @@ suite. Comparison currently assumes the configured entry-point path exists in
 both revisions; an entry-point rename is unavailable rather than guessed.
 Member/source-file renames, project additions/deletions, multiple target
 frameworks, generated-code settings, and evidence compatibility are left to the
-CLI snapshot matcher. The Action does not add PR comments, upload comparison
-SARIF, infer alternate entry points, support non-Linux runners, or provide a
-process/network sandbox.
+CLI snapshot matcher. The Action does not upload comparison SARIF, infer
+alternate entry points, support non-Linux runners, or provide a process/network
+sandbox. GitHub exposes only the first 100 issue comments in the publisher's
+single discovery request; this keeps API usage bounded and is sufficient unless
+a PR already has more than 100 older comments before the bot report.
 
 ## Troubleshooting
 
@@ -248,6 +343,16 @@ process/network sandbox.
   `base-ref` or a valid snapshot through `baseline-path`.
 - **Unknown/incomparable evidence did not fail:** expected; only CLI findings
   classified as `regression` can fail the regression gate.
+- **PR comment was not published:** confirm the event is `pull_request`,
+  comparison completed, `comment-on-pr` is `true`, and the job has
+  `pull-requests: write`. Fork tokens are expected to be read-only; use the
+  isolated `workflow_run` examples instead of weakening the analysis job.
+- **A repeated run created a second comment:** the authenticated credential must
+  be the same bot identity. The publisher deliberately refuses to edit a
+  marked comment owned by another identity.
+- **Artifact publication was rejected:** confirm the artifact came from the
+  exact `workflow_run` ID/name and that its repository, PR number, and head SHA
+  still match the trusted event. Do not bypass these checks.
 - **SARIF upload failed:** verify `security-events: write`, repository Code
   Scanning availability, and fork restrictions. Local JSON and SARIF files are
   still retained for later artifact upload.
@@ -262,6 +367,7 @@ From a Bash environment on Ubuntu:
 bash scripts/static-checks.sh
 bash tests/integration/test-action-scripts.sh
 bash tests/integration/test-comparison-scripts.sh
+bash tests/integration/test-pr-reporting-scripts.sh
 bash tests/integration/test-published-cli.sh
 bash tests/integration/test-pr-regression-e2e.sh
 ```

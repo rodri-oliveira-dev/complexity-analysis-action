@@ -17,6 +17,8 @@ emit_result() {
     printf 'comparison-status=%s\n' "$status"
     printf 'regression-count=%s\n' "$count"
     printf 'comparison-exit-code=%s\n' "$exit_code"
+    printf 'base-revision=%s\n' "${baseline_sha:-}"
+    printf 'head-revision=%s\n' "${current_sha:-}"
   } >> "$GITHUB_OUTPUT"
 }
 

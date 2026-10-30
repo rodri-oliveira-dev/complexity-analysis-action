@@ -15,6 +15,7 @@ set -euo pipefail
 : "${INPUT_FAIL_ON_REGRESSION:=false}"
 : "${INPUT_BASELINE_PATH:=}"
 : "${INPUT_COMPARISON_OUTPUT:=}"
+: "${INPUT_COMMENT_ON_PR:=false}"
 
 fail() {
   printf '::error title=Complexity Analysis input error::%s\n' "$1"
@@ -77,6 +78,14 @@ semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]
   fail "compare-with-base must be either 'true' or 'false'."
 [[ "$INPUT_FAIL_ON_REGRESSION" == "true" || "$INPUT_FAIL_ON_REGRESSION" == "false" ]] ||
   fail "fail-on-regression must be either 'true' or 'false'."
+[[ "$INPUT_COMMENT_ON_PR" == "true" || "$INPUT_COMMENT_ON_PR" == "false" ]] ||
+  fail "comment-on-pr must be either 'true' or 'false'."
+if [[ "$INPUT_COMMENT_ON_PR" == "true" ]]; then
+  [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]] ||
+    fail "comment-on-pr=true requires the pull_request event."
+  [[ "$INPUT_COMPARE_WITH_BASE" == "true" || -n "$INPUT_BASELINE_PATH" ]] ||
+    fail "comment-on-pr=true requires a baseline comparison."
+fi
 
 for value_name in INPUT_BASE_REF INPUT_BASELINE_PATH INPUT_COMPARISON_OUTPUT; do
   value="${!value_name:-}"
@@ -204,7 +213,8 @@ comparison_path="$comparison_parent/$(basename -- "$comparison_path")"
 baseline_report_path="$output_directory/baseline.json"
 current_report_path="$output_directory/current.json"
 comparison_sarif_path="${comparison_path%.json}.sarif"
-for reserved_path in "$report_path" "$sarif_path" "$baseline_report_path" "$current_report_path"; do
+pr_report_path="$output_directory/pr-report.json"
+for reserved_path in "$report_path" "$sarif_path" "$baseline_report_path" "$current_report_path" "$pr_report_path"; do
   [[ "$comparison_path" != "$reserved_path" && "$comparison_sarif_path" != "$reserved_path" ]] ||
     fail "comparison-output conflicts with another report path."
 done
@@ -223,6 +233,7 @@ done
   printf 'current-report-path=%s\n' "$current_report_path"
   printf 'comparison-report-path=%s\n' "$comparison_path"
   printf 'comparison-sarif-path=%s\n' "$comparison_sarif_path"
+  printf 'pr-report-path=%s\n' "$pr_report_path"
 } >> "$GITHUB_OUTPUT"
 
 printf 'Validated analysis input: %s\n' "$analysis_path"
