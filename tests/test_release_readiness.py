@@ -27,6 +27,13 @@ class ReleaseReadinessTests(unittest.TestCase):
         self.assertIn('--commit "$RELEASE_COMMIT"', workflow)
         self.assertNotIn("inputs.commit", workflow)
         self.assertIn('RELEASE_VERSION: ${{ inputs.version }}', workflow)
+        preflight = workflow.split("      - name: Require release readiness from main\n", 1)[1].split(
+            "      # actions/checkout", 1
+        )[0]
+        self.assertIn('RELEASE_VERSION: ${{ inputs.version }}', preflight)
+        preflight_script = preflight.split("        run: |\n", 1)[1]
+        self.assertIn('echo "Preparing $RELEASE_VERSION from main commit $RELEASE_COMMIT"', preflight_script)
+        self.assertNotIn("${{ inputs.version }}", preflight_script)
 
     def test_accepts_stable_action_version(self):
         self.assertIsNotNone(module.VERSION_RE.fullmatch("v1.0.0"))

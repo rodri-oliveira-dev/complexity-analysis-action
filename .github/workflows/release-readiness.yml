@@ -31,6 +31,7 @@ jobs:
         env:
           RELEASE_REF: ${{ github.ref }}
           RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
           if [[ "$RELEASE_REF" != "refs/heads/main" ]]; then
             echo "::error title=Invalid release source::Start Release readiness from the main branch."
@@ -40,7 +41,7 @@ jobs:
             echo "::error title=Invalid release SHA::Expected a complete 40-character commit SHA."
             exit 1
           fi
-          echo "Preparing ${{ inputs.version }} from main commit $RELEASE_COMMIT"
+          echo "Preparing $RELEASE_VERSION from main commit $RELEASE_COMMIT"
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
