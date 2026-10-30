@@ -4,6 +4,25 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    # Avoid rushing into newly released versions; security updates are independent.
+    cooldown:
+      default-days: 3
+    # Only one grouped version-update PR is expected for this ecosystem.
+    open-pull-requests-limit: 2
     commit-message:
-      prefix: chore
+      prefix: "chore(deps)"
+    groups:
+      # Include major, minor and patch upgrades in the same version-update PR.
+      all-github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      # Security fixes are event-driven and cannot share a PR with version updates.
+      # Group vulnerable GitHub Actions separately rather than delaying fixes.
+      security-github-actions:
+        applies-to: security-updates
+        patterns:
+          - "*"
