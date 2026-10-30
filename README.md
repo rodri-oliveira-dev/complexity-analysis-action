@@ -457,3 +457,14 @@ versions and verifies their SHA-256 digests before use. Repository CI consumes
 including paths containing spaces. It also asserts expected installation,
 input, quality-gate, execution, and cancellation failures without masking an
 unexpected result.
+
+## Public release verification
+
+The planned Action release is independent of the CLI version. No release tag or
+Marketplace listing should be treated as available before publication. The
+[Marketplace publication checklist](docs/marketplace.md) documents owner-only
+approval. After publishing a stable version, use the read-only
+[Verify published Action release](.github/workflows/verify-published-release.yml)
+workflow to check the exact release and maintained-major tag targets. Verify the
+Action separately from an [external consumer repository](docs/external-consumer-validation.md).
+This check does not claim Marketplace visibility or create any release.
