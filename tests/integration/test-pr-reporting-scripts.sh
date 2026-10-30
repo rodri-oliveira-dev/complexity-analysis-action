@@ -27,7 +27,8 @@ env \
   SARIF_PATH="$test_root/reports/analysis.sarif" BASELINE_REPORT_PATH="$test_root/reports/baseline.json" \
   CURRENT_REPORT_PATH="$test_root/reports/current.json" COMPARISON_REPORT_PATH="$comparison_path" \
   PR_REPORT_PATH="$report_path" COMPARISON_STATUS=regressions-detected REGRESSION_COUNT=1 \
-  QUALITY_GATE_STATUS=passed python3 "$repo_root/scripts/build-pr-report.py"
+  QUALITY_GATE_STATUS=passed BASE_REVISION_KIND=commit BASE_REVISION="$base_sha" \
+  python3 "$repo_root/scripts/build-pr-report.py"
 
 PYTHONPATH="$repo_root/scripts" python3 - "$report_path" "$head_sha" <<'PY'
 import sys

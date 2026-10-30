@@ -28,6 +28,7 @@ jobs:
           report-path: downloaded-report/pr-report.json
           expected-repository: ${{ github.repository }}
           expected-head-sha: ${{ github.event.workflow_run.head_sha }}
+          expected-base-sha: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
           expected-pr-number: ${{ github.event.workflow_run.pull_requests[0].number }}
           expected-run-id: ${{ github.event.workflow_run.id }}
           expected-workflow-name: ${{ github.event.workflow_run.name }}

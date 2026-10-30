@@ -151,7 +151,7 @@ steps:
 ```
 
 The Markdown starts with a stable hidden marker. Publication uses only
-`github.token`, searches the PR once, and updates only a marked comment owned by
+`github.token`, paginates the PR comments, and updates only a marked comment owned by
 the canonical `github-actions[bot]` identity. A copied marker in another user or
 bot's comment is ignored. The comment displays at most ten regressions and points to the
 workflow run and available report paths; the full deterministic result remains
@@ -189,6 +189,9 @@ produce complete compatible report data, the status is `unavailable` or
 `failed` and the Action fails without claiming “no regression.” Unknown or
 incomparable complexity, added/removed members, and ambiguous identities stay
 non-regressions according to the CLI and remain visible in `comparison.json`.
+Reports identify the resolved commit actually used by `base-ref`. When
+`baseline-path` is supplied, the comparison base is labeled "Provided snapshot"
+instead of implying that the snapshot came from the PR event's base commit.
 
 ### Secure publication for fork PRs
 
@@ -205,8 +208,8 @@ use the two-workflow pattern in
 2. A `workflow_run` job downloads that exact artifact from the exact triggering
    run and invokes the publication-only companion action at a reviewed full
    commit SHA. It never checks out the PR revision.
-3. `publish-pr-report` validates the schema, size, repository, PR number, head
-   SHA, workflow run ID, workflow name, completed-comparison state, counts, and
+3. `publish-pr-report` validates the schema, size, repository, PR number, event
+   base/head SHAs, workflow run ID, workflow name, completed-comparison state, counts, and
    evidence before making an API request. A mismatch stops publication.
 
 Artifact report text is still untrusted. Markdown values are HTML-escaped,
@@ -322,9 +325,8 @@ Member/source-file renames, project additions/deletions, multiple target
 frameworks, generated-code settings, and evidence compatibility are left to the
 CLI snapshot matcher. The Action does not upload comparison SARIF, infer
 alternate entry points, support non-Linux runners, or provide a process/network
-sandbox. GitHub exposes only the first 100 issue comments in the publisher's
-single discovery request; this keeps API usage bounded and is sufficient unless
-a PR already has more than 100 older comments before the bot report.
+sandbox. Comment discovery follows every GitHub API page before creating a new
+report, so an older bot report remains idempotent on busy pull requests.
 
 ## Troubleshooting
 

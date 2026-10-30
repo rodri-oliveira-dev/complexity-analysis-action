@@ -234,6 +234,8 @@ runs:
         COMPARISON_STATUS: ${{ steps.compare.outputs.comparison-status }}
         REGRESSION_COUNT: ${{ steps.compare.outputs.regression-count }}
         QUALITY_GATE_STATUS: ${{ steps.analyze.outputs.quality-gate-status }}
+        BASE_REVISION: ${{ steps.compare.outputs.base-revision }}
+        BASE_REVISION_KIND: ${{ steps.compare.outputs.base-revision-kind }}
       run: 'python3 "$ACTION_PATH/scripts/build-pr-report.py"'
 
     - name: Publish Pull Request report
@@ -246,6 +248,7 @@ runs:
         PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
         EXPECTED_REPOSITORY: ${{ github.repository }}
         EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         EXPECTED_PR_NUMBER: ${{ github.event.pull_request.number }}
         EXPECTED_RUN_ID: ${{ github.run_id }}
         EXPECTED_WORKFLOW_NAME: ${{ github.workflow }}
@@ -317,6 +320,7 @@ runs:
         COMPARISON_REPORT_PATH: ${{ steps.validate.outputs.comparison-report-path }}
         FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
         BASE_REVISION: ${{ steps.compare.outputs.base-revision }}
+        BASE_REVISION_KIND: ${{ steps.compare.outputs.base-revision-kind }}
         HEAD_REVISION: ${{ steps.compare.outputs.head-revision }}
         PR_REPORT_PATH: ${{ steps.validate.outputs.pr-report-path }}
         PR_REPORT_OUTCOME: ${{ steps.pr-report.outcome }}

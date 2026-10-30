@@ -63,6 +63,8 @@ assert_case() {
   run_comparison "$name" "$classification" >/dev/null
   grep -Fx "comparison-status=$expected_status" "$output" >/dev/null
   grep -Fx "regression-count=$expected_count" "$output" >/dev/null
+  grep -Fx 'base-revision-kind=snapshot' "$output" >/dev/null
+  grep -Fx 'base-revision=' "$output" >/dev/null
 }
 
 assert_case regression regression regressions-detected 1
@@ -123,6 +125,8 @@ env \
   GITHUB_TOKEN=must-not-reach-analysis COMPLEXITY_ACTION_TEST_SECRET=must-not-reach-analysis \
   "$repo_root/scripts/run-comparison.sh"
 grep -Fx 'comparison-status=no-regressions' "$fork_output" >/dev/null
+grep -Fx 'base-revision-kind=commit' "$fork_output" >/dev/null
+grep -Fx "base-revision=$baseline_sha" "$fork_output" >/dev/null
 test -s "$shallow/reports/baseline.json"
 test -s "$shallow/reports/current.json"
 

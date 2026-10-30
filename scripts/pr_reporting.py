@@ -116,7 +116,8 @@ def validate_comparison(document: Any) -> tuple[list[dict[str, Any]], dict[str, 
 
 def validate_envelope(document: Any, *, repository: str | None = None,
                       head_sha: str | None = None, pr_number: int | None = None,
-                      run_id: str | None = None, workflow_name: str | None = None) -> dict[str, Any]:
+                      run_id: str | None = None, workflow_name: str | None = None,
+                      base_sha: str | None = None) -> dict[str, Any]:
     if not isinstance(document, dict) or document.get("SchemaVersion") != SCHEMA:
         raise ReportError(f"Report schema must be {SCHEMA}.")
     repo = text(document.get("Repository"), "Repository", 256)
@@ -128,9 +129,9 @@ def validate_envelope(document: Any, *, repository: str | None = None,
     number = pull.get("Number")
     if not isinstance(number, int) or isinstance(number, bool) or number < 1:
         raise ReportError("Pull request number is invalid.")
-    base_sha = text(pull.get("BaseSha"), "BaseSha", 40)
+    report_base_sha = text(pull.get("BaseSha"), "BaseSha", 40)
     report_head = text(pull.get("HeadSha"), "HeadSha", 40)
-    if not SHA_RE.fullmatch(base_sha) or not SHA_RE.fullmatch(report_head):
+    if not SHA_RE.fullmatch(report_base_sha) or not SHA_RE.fullmatch(report_head):
         raise ReportError("Pull request revisions must be lowercase 40-character SHAs.")
     head_repository = text(pull.get("HeadRepository"), "HeadRepository", 256)
     is_fork = pull.get("IsFork")
@@ -147,6 +148,19 @@ def validate_envelope(document: Any, *, repository: str | None = None,
     status = text(comparison.get("Status"), "Comparison.Status", 64)
     if status not in {"no-regressions", "regressions-detected"}:
         raise ReportError("Only completed comparisons can be published.")
+    comparison_base = comparison.get("Base")
+    if not isinstance(comparison_base, dict):
+        raise ReportError("Comparison base metadata is missing.")
+    base_kind = text(comparison_base.get("Kind"), "Comparison.Base.Kind", 32)
+    comparison_base_sha = comparison_base.get("Sha")
+    if base_kind == "commit":
+        if not isinstance(comparison_base_sha, str) or not SHA_RE.fullmatch(comparison_base_sha):
+            raise ReportError("Comparison commit baseline is invalid.")
+    elif base_kind == "snapshot":
+        if comparison_base_sha is not None:
+            raise ReportError("A supplied baseline snapshot must not claim a commit SHA.")
+    else:
+        raise ReportError("Comparison base kind is invalid.")
     findings = comparison.get("Regressions")
     if not isinstance(findings, list) or len(findings) > MAX_FINDINGS:
         raise ReportError("Regression details are invalid.")
@@ -155,6 +169,9 @@ def validate_envelope(document: Any, *, repository: str | None = None,
             raise ReportError(f"Regression {index} is invalid.")
         for key in ("StableId", "Reason", "Before", "After", "FilePath"):
             text(finding.get(key), f"Regressions[{index}].{key}")
+        start_line = finding.get("StartLine")
+        if not isinstance(start_line, int) or isinstance(start_line, bool) or start_line < 0:
+            raise ReportError(f"Regression {index} has an invalid start line.")
         if not isinstance(finding.get("Evidence"), dict):
             raise ReportError(f"Regression {index} has no validated evidence.")
     counts = comparison.get("Counts")
@@ -195,6 +212,8 @@ def validate_envelope(document: Any, *, repository: str | None = None,
         raise ReportError("Artifact repository does not match the trusted workflow context.")
     if head_sha is not None and report_head != head_sha.lower():
         raise ReportError("Artifact head SHA does not match the trusted workflow context.")
+    if base_sha is not None and base_sha.lower() != report_base_sha:
+        raise ReportError("Artifact event base SHA does not match the trusted workflow context.")
     if pr_number is not None and number != pr_number:
         raise ReportError("Artifact PR number does not match the trusted workflow context.")
     if run_id is not None and report_run_id != run_id:
@@ -209,6 +228,8 @@ def render_comment(report: dict[str, Any], limit: int = MAX_COMMENT_FINDINGS) ->
     comparison = report["Comparison"]
     counts = comparison["Counts"]
     regressions = comparison["Regressions"]
+    base = comparison["Base"]
+    base_display = base["Sha"][:12] if base["Kind"] == "commit" else "Provided snapshot"
     overall = "Regressions detected" if regressions else "No proven regressions"
     lines = [
         MARKER,
@@ -219,7 +240,7 @@ def render_comment(report: dict[str, Any], limit: int = MAX_COMMENT_FINDINGS) ->
         "| Item | Result |",
         "| --- | --- |",
         f"| Repository | `{safe_markdown(report['Repository'])}` |",
-        f"| Base | `{safe_markdown(pull['BaseSha'][:12])}` |",
+        f"| Comparison base | `{safe_markdown(base_display)}` |",
         f"| Head | `{safe_markdown(pull['HeadSha'][:12])}` |",
         f"| Comparison | {safe_markdown(comparison['Status'])} |",
         "| Execution errors | None (comparison completed) |",

@@ -44,9 +44,18 @@ def publish(client: GitHubClient, report: dict[str, Any]) -> str:
     number = report["PullRequest"]["Number"]
     body = render_comment(report)
     encoded_repository = "/".join(urllib.parse.quote(part, safe="") for part in repository.split("/"))
-    comments = client.request("GET", f"/repos/{encoded_repository}/issues/{number}/comments?per_page=100")
-    if not isinstance(comments, list):
-        raise ReportError("GitHub returned an invalid comment list.")
+    comments: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        page_comments = client.request(
+            "GET", f"/repos/{encoded_repository}/issues/{number}/comments?per_page=100&page={page}"
+        )
+        if not isinstance(page_comments, list):
+            raise ReportError("GitHub returned an invalid comment list.")
+        comments.extend(page_comments)
+        if len(page_comments) < 100:
+            break
+        page += 1
     owned = [
         comment for comment in comments
         if isinstance(comment, dict)
@@ -71,11 +80,13 @@ def main() -> None:
             raise ReportError("GITHUB_TOKEN is unavailable; grant pull-requests: write only to the publishing job.")
         expected_repository = os.environ.get("EXPECTED_REPOSITORY") or os.environ.get("GITHUB_REPOSITORY")
         expected_head = os.environ.get("EXPECTED_HEAD_SHA")
+        expected_base = os.environ.get("EXPECTED_BASE_SHA")
         expected_number_raw = os.environ.get("EXPECTED_PR_NUMBER")
         expected_run = os.environ.get("EXPECTED_RUN_ID")
         expected_workflow = os.environ.get("EXPECTED_WORKFLOW_NAME")
-        if not expected_repository or not expected_head or not expected_number_raw or not expected_number_raw.isdigit():
-            raise ReportError("Trusted repository, head SHA, and PR number metadata are required.")
+        if (not expected_repository or not expected_head or not expected_base
+                or not expected_number_raw or not expected_number_raw.isdigit()):
+            raise ReportError("Trusted repository, base/head SHAs, and PR number metadata are required.")
         report = validate_envelope(
             load_json(Path(os.environ["PR_REPORT_PATH"])),
             repository=expected_repository,
@@ -83,6 +94,7 @@ def main() -> None:
             pr_number=int(expected_number_raw),
             run_id=expected_run or None,
             workflow_name=expected_workflow or None,
+            base_sha=expected_base,
         )
         result = publish(GitHubClient(token, os.environ.get("GITHUB_API_URL", "https://api.github.com")), report)
         print(f"PR complexity report {result}.")

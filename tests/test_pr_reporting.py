@@ -59,6 +59,7 @@ def envelope(regressions: list[dict] | None = None, *, fork: bool = False) -> di
         },
         "Comparison": {
             "Status": "regressions-detected" if regressions else "no-regressions",
+            "Base": {"Kind": "commit", "Sha": SHA_A},
             "Counts": {"Regressions": len(regressions), "Improvements": 0, "Unchanged": 2, "Incomparable": 1},
             "Regressions": [
                 {
@@ -82,8 +83,9 @@ def envelope(regressions: list[dict] | None = None, *, fork: bool = False) -> di
 
 
 class FakeClient:
-    def __init__(self, comments=None, *, fail=False):
+    def __init__(self, comments=None, *, pages=None, fail=False):
         self.comments = comments or []
+        self.pages = pages
         self.fail = fail
         self.calls = []
 
@@ -92,6 +94,9 @@ class FakeClient:
         if self.fail:
             raise ReportError("simulated GitHub API failure")
         if method == "GET":
+            if self.pages is not None:
+                page = int(path.rsplit("=", 1)[1])
+                return self.pages[page - 1] if page <= len(self.pages) else []
             return self.comments
         return {"id": 99}
 
@@ -123,11 +128,13 @@ class EnvelopeTests(unittest.TestCase):
     def test_validates_provenance_for_privileged_artifact(self):
         report = envelope([regression()], fork=True)
         self.assertIs(validate_envelope(report, repository="owner/repository", head_sha=SHA_B,
-                                        pr_number=7, run_id="123", workflow_name="Complexity PR analysis"), report)
+                                        pr_number=7, run_id="123", workflow_name="Complexity PR analysis",
+                                        base_sha=SHA_A), report)
         for kwargs in ({"head_sha": SHA_A}, {"pr_number": 8}, {"run_id": "999"},
-                       {"repository": "other/repository"}, {"workflow_name": "Other workflow"}):
+                       {"repository": "other/repository"}, {"workflow_name": "Other workflow"},
+                       {"base_sha": SHA_B}):
             defaults = {"repository": "owner/repository", "head_sha": SHA_B, "pr_number": 7,
-                        "run_id": "123", "workflow_name": "Complexity PR analysis"}
+                        "run_id": "123", "workflow_name": "Complexity PR analysis", "base_sha": SHA_A}
             defaults.update(kwargs)
             with self.assertRaises(ReportError):
                 validate_envelope(report, **defaults)
@@ -140,6 +147,21 @@ class EnvelopeTests(unittest.TestCase):
         report = envelope([regression()])
         report["Comparison"]["Counts"]["Regressions"] = 0
         with self.assertRaisesRegex(ReportError, "count"):
+            validate_envelope(report)
+
+    def test_rejects_untrusted_start_line_markdown(self):
+        report = envelope([regression()])
+        report["Comparison"]["Regressions"][0]["StartLine"] = "1`\n<!-- injected -->"
+        with self.assertRaisesRegex(ReportError, "start line"):
+            validate_envelope(report)
+
+    def test_distinguishes_commit_and_supplied_snapshot_baselines(self):
+        report = envelope()
+        report["Comparison"]["Base"] = {"Kind": "snapshot", "Sha": None}
+        validated = validate_envelope(report)
+        self.assertIn("Provided snapshot", render_comment(validated))
+        report["Comparison"]["Base"] = {"Kind": "snapshot", "Sha": SHA_A}
+        with self.assertRaisesRegex(ReportError, "must not claim"):
             validate_envelope(report)
 
     def test_unavailable_artifacts_are_omitted(self):
@@ -182,6 +204,16 @@ class PublicationTests(unittest.TestCase):
         client = FakeClient([spoofed, human])
         self.assertEqual(publish(client, validate_envelope(envelope())), "created")
         self.assertEqual(client.calls[-1][0], "POST")
+
+    def test_finds_owned_report_after_first_comment_page(self):
+        first_page = [
+            {"id": index, "body": "ordinary", "user": {"login": "user", "type": "User"}}
+            for index in range(1, 101)
+        ]
+        owned = {"id": 101, "body": MARKER, "user": {"login": "github-actions[bot]", "type": "Bot"}}
+        client = FakeClient(pages=[first_page, [owned]])
+        self.assertEqual(publish(client, validate_envelope(envelope())), "updated")
+        self.assertEqual([call[0] for call in client.calls], ["GET", "GET", "PATCH"])
 
     def test_api_failure(self):
         with self.assertRaises(ReportError):

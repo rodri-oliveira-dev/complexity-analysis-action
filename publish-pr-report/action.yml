@@ -12,6 +12,9 @@ inputs:
   expected-head-sha:
     description: Pull request head SHA from the trusted workflow_run context.
     required: true
+  expected-base-sha:
+    description: Pull request event base SHA from the trusted workflow_run context.
+    required: true
   expected-pr-number:
     description: Pull request number from the trusted workflow_run context.
     required: true
@@ -31,6 +34,7 @@ runs:
         PR_REPORT_PATH: ${{ inputs.report-path }}
         EXPECTED_REPOSITORY: ${{ inputs.expected-repository }}
         EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha }}
+        EXPECTED_BASE_SHA: ${{ inputs.expected-base-sha }}
         EXPECTED_PR_NUMBER: ${{ inputs.expected-pr-number }}
         EXPECTED_RUN_ID: ${{ inputs.expected-run-id }}
         EXPECTED_WORKFLOW_NAME: ${{ inputs.expected-workflow-name }}

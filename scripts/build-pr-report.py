@@ -58,6 +58,16 @@ def main() -> None:
         run_id = required("GITHUB_RUN_ID")
         if not run_id.isdigit():
             raise ReportError("GITHUB_RUN_ID is invalid.")
+        base_revision_kind = required("BASE_REVISION_KIND")
+        base_revision = os.environ.get("BASE_REVISION", "")
+        if base_revision_kind == "commit":
+            if len(base_revision) != 40 or any(c not in "0123456789abcdef" for c in base_revision):
+                raise ReportError("Resolved comparison base revision is invalid.")
+        elif base_revision_kind == "snapshot":
+            if base_revision:
+                raise ReportError("A supplied baseline snapshot must not claim a commit revision.")
+        else:
+            raise ReportError("Comparison base revision kind is invalid.")
         report = {
             "SchemaVersion": SCHEMA,
             "Repository": repository,
@@ -71,6 +81,7 @@ def main() -> None:
             },
             "Comparison": {
                 "Status": status,
+                "Base": {"Kind": base_revision_kind, "Sha": base_revision or None},
                 "Counts": {
                     "Regressions": raw_counts["regression"],
                     "Improvements": raw_counts["improvement"],
@@ -101,6 +112,7 @@ def main() -> None:
             pr_number=number,
             run_id=run_id,
             workflow_name=required("GITHUB_WORKFLOW"),
+            base_sha=base_sha,
         )
         destination = Path(required("PR_REPORT_PATH"))
         destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

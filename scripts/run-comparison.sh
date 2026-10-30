@@ -18,6 +18,7 @@ emit_result() {
     printf 'regression-count=%s\n' "$count"
     printf 'comparison-exit-code=%s\n' "$exit_code"
     printf 'base-revision=%s\n' "${baseline_sha:-}"
+    printf 'base-revision-kind=%s\n' "${baseline_revision_kind:-}"
     printf 'head-revision=%s\n' "${current_sha:-}"
   } >> "$GITHUB_OUTPUT"
 }
@@ -132,6 +133,7 @@ PY
 
 baseline_sha=""
 current_sha=""
+baseline_revision_kind=""
 base_fallback_ref=""
 head_fallback_ref=""
 
@@ -153,12 +155,19 @@ if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
     unavailable "The event head repository identity is invalid."
   [[ "$pull_number" =~ ^[1-9][0-9]*$ ]] || unavailable "The pull request number is invalid."
   baseline_sha="$event_base_sha"
+  baseline_revision_kind="commit"
   base_fallback_ref="refs/heads/$base_branch"
   head_fallback_ref="refs/pull/$pull_number/head"
 fi
 
 if [[ -n "${BASE_REF:-}" ]]; then
   baseline_sha="$(resolve_explicit_base)" || unavailable "The explicit base-ref could not be resolved to a commit."
+  baseline_revision_kind="commit"
+fi
+
+if [[ -n "${BASELINE_INPUT_PATH:-}" ]]; then
+  baseline_sha=""
+  baseline_revision_kind="snapshot"
 fi
 
 if [[ -z "$current_sha" ]]; then

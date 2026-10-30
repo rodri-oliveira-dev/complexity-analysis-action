@@ -98,6 +98,7 @@ def main() -> None:
     passed = sum(1 for gate in gates if gate.get("Passed") is True)
     findings, comparison_counts = comparison_data()
     regressions = [finding for finding in findings if finding["Classification"] == "regression"]
+    base_revision = "Provided snapshot" if env("BASE_REVISION_KIND") == "snapshot" else (env("BASE_REVISION") or "Unavailable")
 
     lines = [
         "# Complexity Analysis",
@@ -109,7 +110,7 @@ def main() -> None:
         f"| Analysis status | {cell(env('ANALYSIS_STATUS', 'unknown'))} |",
         f"| Quality-gate status | {cell(env('QUALITY_GATE_STATUS', 'unknown'))} |",
         f"| Comparison status | {cell(env('COMPARISON_STATUS', 'not-requested'))} |",
-        f"| Base revision | `{cell(env('BASE_REVISION') or 'Unavailable')}` |",
+        f"| Comparison base | `{cell(base_revision)}` |",
         f"| Head revision | `{cell(env('HEAD_REVISION') or 'Unavailable')}` |",
         f"| Proven regressions | {cell(env('REGRESSION_COUNT', '0'))} |",
         f"| Improvements | {comparison_counts.get('improvement', 0)} |",
