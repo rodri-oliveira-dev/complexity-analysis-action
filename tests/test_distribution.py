@@ -23,22 +23,36 @@ class DistributionTests(unittest.TestCase):
         result = distribution.validate(ROOT)
         self.assertEqual(result["actionName"], "Complexity Analysis")
         self.assertEqual(result["categories"], ["code-quality", "continuous-integration"])
-        self.assertFalse(result["marketplacePublished"])
+        self.assertEqual(result["marketplaceListingVerification"], "not-verified-by-local-validator")
+        self.assertNotIn("marketplacePublished", result)
 
-    def test_prepublication_installation_is_discoverable_and_honest(self):
+    def test_published_release_documentation_is_usable(self):
+        release_ref = (
+            "rodri-oliveira-dev/complexity-analysis-action@"
+            "2d807ef29ca03c685d224543a135d8c30dfe2c67"
+        )
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         portuguese = (ROOT / "README.pt-BR.md").read_text(encoding="utf-8")
         marketplace = (ROOT / "docs" / "marketplace.md").read_text(encoding="utf-8")
         self.assertIn("[![GitHub Action]", readme.split("## Overview", 1)[0])
         self.assertIn("## Quick start", readme)
         self.assertIn(".github/workflows/complexity-analysis.yml", readme)
-        self.assertIn("@REVIEWED_FULL_40_CHARACTER_SHA", readme)
-        self.assertNotIn("@0000000000000000000000000000000000000000", readme)
-        self.assertIn("not yet published to GitHub Marketplace", readme)
-        self.assertIn("Use latest version", readme)
-        self.assertIn("[![GitHub Action]", portuguese)
-        self.assertIn("Use latest version", portuguese)
-        self.assertIn("Publish this Action to the GitHub Marketplace", marketplace)
+        for document in (readme, portuguese):
+            self.assertIn(release_ref, document)
+            self.assertNotIn("@REVIEWED_FULL_40_CHARACTER_SHA", document)
+            self.assertNotIn("@0000000000000000000000000000000000000000", document)
+        self.assertIn("v1.0.0", readme)
+        self.assertIn("v1.0.0", portuguese)
+        self.assertIn("Marketplace listing", marketplace)
+        self.assertIn("not yet", marketplace)
+
+    def test_copyable_examples_pin_published_release_commit(self):
+        expected = "2d807ef29ca03c685d224543a135d8c30dfe2c67"
+        for path in sorted((ROOT / "examples").glob("*.yml")):
+            with self.subTest(example=path.name):
+                content = path.read_text(encoding="utf-8")
+                self.assertIn("@" + expected, content)
+                self.assertNotIn("@0000000000000000000000000000000000000000", content)
 
     def test_latest_required_run_wins(self):
         runs = [

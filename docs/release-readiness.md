@@ -2,6 +2,18 @@
 
 Audit date: 2026-10-30. Target Action release: `v1.0.0`.
 
+## Post-audit publication update (2026-10-30)
+
+The [`v1.0.0` GitHub Release](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) was
+published from reviewed commit `2d807ef29ca03c685d224543a135d8c30dfe2c67`.
+Release-readiness checks passed on that commit. The `v1.0.0` tag exists;
+the moving `v1` tag has not yet been created. The GitHub Releases API
+reported `immutable: false`, despite the protected release-tag ruleset.
+Marketplace listing visibility remains subject to separate public-UI verification.
+
+The following pre-release baseline is a **historical snapshot** and should
+not be interpreted as the current repository configuration.
+
 ## Baseline and repository state
 
 - The validated default branch was `main` at

@@ -30,12 +30,21 @@ macOS are not supported until dedicated end-to-end jobs pass.
 5. Create a draft release for `vX.Y.Z`, attach any reviewed artifacts, and obtain
    explicit approval before publication. For the initial release, use the
    `action.yml` Marketplace banner and the owner procedure in `marketplace.md` so
-   the release and listing are published together. Publication locks that tag.
+   the release and listing can be published together. Protect the release
+   tag with the repository ruleset, and independently verify GitHub Release
+   immutability; tag protection does not imply `immutable: true`.
 
-The release-specific tag is immutable and is never moved or reused. Consumers
-may pin it or, for the strongest reproducibility, the manifest's commit SHA.
+The repository's release-specific tag ruleset prevents tag updates and deletion;
+never move or reuse an existing version tag. This is distinct from GitHub
+Release immutability. Consumers may pin a version tag or, for stronger
+reproducibility, the manifest's exact commit SHA.
 
 ## Compatibility references
+
+The initial [`v1.0.0` release](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) was
+published on 2026-10-30 from commit `2d807ef29ca03c685d224543a135d8c30dfe2c67`. The `v1`
+compatibility reference had not yet been created at post-release verification.
+Do not advertise `@v1` until that tag is actually available.
 
 `v1` is a mutable Git reference, not a GitHub release. After a compatible
 `v1.x.y` release is published and verified, compare the target, create or update

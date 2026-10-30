@@ -16,8 +16,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Replace the zero SHA with a reviewed commit. No release tag exists yet.
-      - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+      # Pinned to the reviewed v1.0.0 release commit.
+      - uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           path: MySolution.slnx
           tool-version: 1.0.1

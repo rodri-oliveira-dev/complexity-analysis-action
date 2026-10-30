@@ -1,5 +1,10 @@
 # Release checklist
 
+Reusable checklist for future versions. The initial
+[`v1.0.0` release](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) was published on
+2026-10-30; the items below are **not** a retroactive assertion that every
+Marketplace, external-consumer, or release-immutability check is complete.
+
 - [ ] The requested version is a unique stable Semantic Version.
 - [ ] CI, end-to-end, CodeQL, and release-readiness checks pass on the exact commit.
 - [ ] Compatibility and public-contract changes have been assessed.

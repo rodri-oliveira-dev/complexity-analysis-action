@@ -1,5 +1,9 @@
 # External consumer validation
 
+The `v1.0.0` tag has been published at `2d807ef29ca03c685d224543a135d8c30dfe2c67`.
+The separate `v1` alias is not yet available. Validate `v1.0.0` and the full
+SHA now; add the `v1` reference only after the alias is created and verified.
+
 Running the Action with `uses: ./` in its own repository tests implementation, not
 the ability of other repositories to resolve a published tag. Complete this
 independent check after an approved stable release.

@@ -4,7 +4,7 @@
 
 English | [Português (Brasil)](README.pt-BR.md)
 
-**Get started:** [Add to a workflow](#quick-start) · [Examples](examples/) · [Marketplace publication status](docs/marketplace.md)
+**Get started:** [Add to a workflow](#quick-start) · [Examples](examples/) · [Release v1.0.0](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) · [Marketplace verification](docs/marketplace.md)
 
 Reusable GitHub Action for deterministic complexity analysis of C# projects and
 solutions. The Action installs and invokes the published
@@ -14,14 +14,15 @@ The CLI and analyzer are maintained in the
 [`complexity-analyzers`](https://github.com/rodri-oliveira-dev/complexity-analyzers)
 repository.
 
-The stable Action contract is versioned independently from the CLI and analysis
-engine. The planned first stable release is `v1.0.0`; the exact CLI dependency
-is currently `1.0.1`.
+The Action uses independent Semantic Versioning. Its first stable release,
+[`v1.0.0`](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0), was published on 2026-10-30;
+the pinned CLI dependency is `ComplexityAnalysis.Tool` 1.0.1.
 
 > [!IMPORTANT]
-> This is a release candidate. It supports `ubuntu-latest` only and has not been
-> released or published to GitHub Marketplace. Use a reviewed full commit SHA
-> during evaluation. Release aliases such as `@v1` do not exist yet.
+> `v1.0.0` is published and supports Ubuntu runners only. The optional moving
+> `@v1` compatibility alias has not been created yet. Pin the approved release
+> commit SHA for reproducibility; verify Marketplace listing availability
+> separately from GitHub Release publication.
 
 ## Overview
 
@@ -34,7 +35,9 @@ of execution time.
 
 ## Quick start
 
-Add a workflow at `.github/workflows/complexity-analysis.yml` in the repository you want to analyze. **This Action is not yet published to GitHub Marketplace.** Before the first stable release, replace `REVIEWED_FULL_40_CHARACTER_SHA` with the full 40-character SHA of a commit you have reviewed, and change `MySolution.slnx` to your actual project or solution file. The placeholder is intentionally not executable.
+Add `.github/workflows/complexity-analysis.yml` to the repository you want to
+analyze. This example pins the published `v1.0.0` release commit. Replace
+`MySolution.slnx` with your actual project or solution path.
 
 ```yaml
 name: Complexity Analysis
@@ -53,12 +56,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Analyze C# complexity
-        uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
+        uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           path: MySolution.slnx
 ```
 
-**After the first public release:** the GitHub Marketplace listing will provide **Use latest version**. You can then reference the immutable `@v1.0.0` tag or the maintained compatible `@v1` tag; neither tag exists yet. For stronger supply-chain reproducibility, pin the reviewed release commit SHA. The [publication instructions](docs/marketplace.md) explain what the owner must complete to make the Marketplace listing available.
+**Version choices:** the published `@v1.0.0` tag is available as a convenient
+stable reference, or you can pin the reviewed 40-character SHA above for stronger
+reproducibility. The moving `@v1` alias does not exist yet; do not use it until
+it has been created and verified. A GitHub Release does not itself prove that a
+[Marketplace listing](docs/marketplace.md) is publicly visible.
 
 Validated workflow examples:
 
@@ -100,9 +107,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # Replace this placeholder with a reviewed full 40-character commit SHA.
+      # Pin to the reviewed v1.0.0 release commit.
       - id: complexity
-        uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
+        uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
         with:
           path: My Solution.slnx
           tool-version: 1.0.1
@@ -204,7 +211,7 @@ steps:
   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     with:
       persist-credentials: false
-  - uses: rodri-oliveira-dev/complexity-analysis-action@REVIEWED_FULL_40_CHARACTER_SHA
+  - uses: rodri-oliveira-dev/complexity-analysis-action@2d807ef29ca03c685d224543a135d8c30dfe2c67
     with:
       path: MySolution.slnx
       compare-with-base: "true"
@@ -476,11 +483,12 @@ unexpected result.
 
 ## Public release verification
 
-The planned Action release is independent of the CLI version. No release tag or
-Marketplace listing should be treated as available before publication. The
-[Marketplace publication checklist](docs/marketplace.md) documents owner-only
-approval. After publishing a stable version, use the read-only
+The [`v1.0.0` release](https://github.com/rodri-oliveira-dev/complexity-analysis-action/releases/tag/v1.0.0) is published
+and points to the reviewed commit `2d807ef29ca03c685d224543a135d8c30dfe2c67`. The major `v1` alias remains to
+be created and verified separately. Use the read-only
 [Verify published Action release](.github/workflows/verify-published-release.yml)
-workflow to check the exact release and maintained-major tag targets. Verify the
-Action separately from an [external consumer repository](docs/external-consumer-validation.md).
-This check does not claim Marketplace visibility or create any release.
+workflow to check the exact release and, after it exists, its major tag target.
+Test the Action from an
+[external consumer repository](docs/external-consumer-validation.md).
+Marketplace discoverability requires independent verification; neither the
+release API nor this workflow proves it.
