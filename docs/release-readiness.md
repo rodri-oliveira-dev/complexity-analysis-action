@@ -71,6 +71,12 @@ and privileged publication must never execute the analyzed revision.
 No cross-platform support is claimed. GitHub-hosted Ubuntu is the only supported
 runner contract for `v1.0.0`.
 
+Marketplace metadata and public examples are checked by
+`scripts/validate-distribution.py`. The proposed categories are the current
+Marketplace categories **Code quality** and **Continuous integration**. Final
+name uniqueness, the Developer Agreement, 2FA, and listing publication remain
+owner-confirmed UI operations.
+
 ## Publication boundary
 
 No workflow in this repository publishes on push. Manual release readiness only

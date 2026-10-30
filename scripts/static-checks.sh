@@ -46,6 +46,7 @@ bash -n scripts/*.sh tests/integration/*.sh
 python3 -m compileall -q scripts tests
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 tests/static/check-action-pins.py action.yml .github/workflows/*.yml examples/*.yml
+python3 scripts/validate-distribution.py
 "$tool_root/actionlint" -color
 "$tool_root/actionlint" -color examples/*.yml
 "$action_validator" action.yml
@@ -55,6 +56,10 @@ python3 tests/static/check-action-pins.py action.yml .github/workflows/*.yml exa
 "$action_validator" .github/workflows/codeql.yml
 "$action_validator" .github/workflows/release-readiness.yml
 "$action_validator" examples/consumer-workflow.yml
+"$action_validator" examples/basic-analysis.yml
+"$action_validator" examples/non-blocking-analysis.yml
+"$action_validator" examples/quality-gates.yml
+"$action_validator" examples/sarif-upload.yml
 "$action_validator" examples/secure-pr-analysis.yml
 "$action_validator" examples/secure-pr-publish.yml
 git diff --check

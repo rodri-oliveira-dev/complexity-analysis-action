@@ -20,10 +20,13 @@ macOS are not supported until dedicated end-to-end jobs pass.
 2. Verify immutable releases in repository settings, then dispatch **Release
    readiness** with that confirmation, `version` (for example `v1.0.0`), and the
    full 40-character commit SHA. The workflow validates rather than publishes.
-3. Review the generated notes and manifest, including every tracked file digest.
+3. Review the generated notes, manifest, Marketplace metadata report, repository
+   settings, and exact-commit CI/End-to-end/CodeQL results.
 4. Confirm the repository has no critical alert and immutable releases remain enabled.
 5. Create a draft release for `vX.Y.Z`, attach any reviewed artifacts, and obtain
-   explicit approval before publication. Publication locks that release tag.
+   explicit approval before publication. For the initial release, use the
+   `action.yml` Marketplace banner and the owner procedure in `marketplace.md` so
+   the release and listing are published together. Publication locks that tag.
 
 The release-specific tag is immutable and is never moved or reused. Consumers
 may pin it or, for the strongest reproducibility, the manifest's commit SHA.

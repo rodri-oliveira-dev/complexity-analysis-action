@@ -1,5 +1,5 @@
 name: Complexity Analysis
-description: Analyze C# projects and solutions with the published ComplexityAnalysis.Tool CLI.
+description: Analyze C# complexity with quality gates, JSON/SARIF reports, and proven regression detection.
 author: Rodrigo de Oliveira
 
 branding:

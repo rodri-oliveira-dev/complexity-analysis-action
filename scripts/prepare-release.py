@@ -26,7 +26,9 @@ REQUIRED_FILES = (
     "CHANGELOG.md",
     "RELEASE_CHECKLIST.md",
     "docs/maintainers.md",
+    "docs/marketplace.md",
     "docs/release-readiness.md",
+    "docs/releases/v1.0.0.md",
     "LICENSE",
 )
 
@@ -122,7 +124,11 @@ def main() -> None:
     action_document = (root / "action.yml").read_text(encoding="utf-8")
     tool_version = cli_default(action_document)
     require_published_cli(tool_version)
-    notes = changelog_section((root / "CHANGELOG.md").read_text(encoding="utf-8"), args.version)
+    changelog_section((root / "CHANGELOG.md").read_text(encoding="utf-8"), args.version)
+    notes_path = root / "docs" / "releases" / f"{args.version}.md"
+    if not notes_path.is_file():
+        raise ReadinessError(f"Detailed release notes are missing: {notes_path.relative_to(root)}")
+    notes = notes_path.read_text(encoding="utf-8").strip()
     files = file_manifest(root)
 
     output = args.output_directory.resolve()
@@ -138,6 +144,11 @@ def main() -> None:
             "runtime": "Microsoft.NETCore.App 10.0",
         },
         "supportedRunners": ["ubuntu-latest"],
+        "marketplace": {
+            "name": "Complexity Analysis",
+            "categories": ["code-quality", "continuous-integration"],
+            "published": False,
+        },
         "publicationPerformed": False,
         "files": files,
     }
@@ -145,7 +156,7 @@ def main() -> None:
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
     )
     (output / "release-notes.md").write_text(
-        f"# Complexity Analysis Action {args.version}\n\n{notes}\n", encoding="utf-8", newline="\n"
+        f"{notes}\n", encoding="utf-8", newline="\n"
     )
     print(f"Prepared non-publishing release artifacts for {args.version} at {args.commit}.")
 

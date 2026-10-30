@@ -4,6 +4,9 @@ Reusable GitHub Action for deterministic complexity analysis of C# projects and
 solutions. The Action installs and invokes the published
 [`ComplexityAnalysis.Tool`](https://www.nuget.org/packages/ComplexityAnalysis.Tool)
 CLI; it does not copy or reimplement the analysis engine.
+The CLI and analyzer are maintained in the
+[`complexity-analyzers`](https://github.com/rodri-oliveira-dev/complexity-analyzers)
+repository.
 
 The stable Action contract is versioned independently from the CLI and analysis
 engine. The planned first stable release is `v1.0.0`; the exact CLI dependency
@@ -13,6 +16,45 @@ is currently `1.0.1`.
 > This is a release candidate. It supports `ubuntu-latest` only and has not been
 > released or published to GitHub Marketplace. Use a reviewed full commit SHA
 > during evaluation. Release aliases such as `@v1` do not exist yet.
+
+## Overview
+
+Complexity Analysis helps .NET teams analyze C# complexity in CI pipelines,
+enforce explicit quality gates, compare changes in pull requests, generate JSON
+and SARIF reports, detect proven regressions, and review validated results in
+GitHub. It uses structural metrics and estimated algorithmic complexity. It is
+not a runtime benchmark, automatic performance optimizer, or precise predictor
+of execution time.
+
+## Installation
+
+Before the first public release, replace the zero SHA below with a reviewed full
+commit SHA. After publication, `v1.0.0` will identify the immutable initial
+release and `v1` will follow compatible v1 releases. Security-sensitive users
+should continue to pin the full release commit SHA.
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    with:
+      persist-credentials: false
+  - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
+    with:
+      path: MySolution.slnx
+```
+
+Validated workflow examples:
+
+- [Basic analysis](examples/basic-analysis.yml)
+- [Configurable quality gates](examples/quality-gates.yml)
+- [Non-blocking analysis](examples/non-blocking-analysis.yml)
+- [SARIF upload](examples/sarif-upload.yml)
+- [PR regression analysis](examples/secure-pr-analysis.yml)
+- [Isolated fork PR feedback](examples/secure-pr-publish.yml)
+- [Complete consumer workflow](examples/consumer-workflow.yml)
 
 ## Requirements
 
@@ -25,7 +67,7 @@ is currently `1.0.1`.
   `security-events: write`; direct PR comments additionally require
   `pull-requests: write`.
 
-## Usage
+## Complete example
 
 ```yaml
 name: Complexity Analysis

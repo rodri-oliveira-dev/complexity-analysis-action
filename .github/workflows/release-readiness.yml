@@ -18,6 +18,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -56,6 +57,20 @@ jobs:
           --version "${{ inputs.version }}"
           --commit "${{ inputs.commit }}"
           --output-directory release-readiness
+      - name: Record Marketplace metadata validation
+        id: marketplace-metadata
+        continue-on-error: true
+        run: python3 scripts/validate-distribution.py --output release-readiness/marketplace-readiness.json
+      - name: Verify required workflow results for the release commit
+        id: required-runs
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/check-required-runs.py
+          --repository "${{ github.repository }}"
+          --commit "${{ inputs.commit }}"
+          --output release-readiness/required-workflow-results.json
       - name: Inspect repository publication prerequisites
         id: repository-settings
         continue-on-error: true
@@ -76,7 +91,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Enforce repository prerequisites
-        if: ${{ steps.repository-settings.outcome != 'success' }}
+        if: ${{ steps.repository-settings.outcome != 'success' || steps.marketplace-metadata.outcome != 'success' || steps.required-runs.outcome != 'success' }}
         run: |
           echo "::error title=Release is not eligible::Enable immutable releases and protect main before publication."
           exit 1
