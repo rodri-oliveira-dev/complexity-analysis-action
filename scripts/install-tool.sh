@@ -8,6 +8,7 @@ fail() {
 }
 
 [[ -n "${RUNNER_TEMP:-}" ]] || fail "RUNNER_TEMP is not available."
+[[ -n "${GITHUB_OUTPUT:-}" ]] || fail "GITHUB_OUTPUT is not available."
 [[ -f "${NUGET_CONFIG:-}" ]] || fail "The Action's NuGet configuration is unavailable."
 tool_directory="$(mktemp -d "$RUNNER_TEMP/complexity-analysis-tool.XXXXXX")" ||
   fail "Unable to create the temporary tool directory."
@@ -27,5 +28,5 @@ installed_version="$($tool_command --version)" || fail "Unable to read the insta
 [[ "$installed_version" == "$TOOL_VERSION" ]] ||
   fail "Installed CLI version '$installed_version' does not match requested version '$TOOL_VERSION'."
 
-printf 'tool-directory=%s\n' "$tool_directory" >> "$GITHUB_OUTPUT"
+printf 'tool-command=%s\n' "$tool_command" >> "$GITHUB_OUTPUT"
 printf 'Installed ComplexityAnalysis.Tool %s.\n' "$installed_version"

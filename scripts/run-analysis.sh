@@ -2,8 +2,41 @@
 
 set -euo pipefail
 
-tool_command="$TOOL_DIRECTORY/complexity-analysis"
-common_arguments=(analyze "$ANALYSIS_PATH")
+fail() {
+  printf '::error title=Complexity Analysis execution failed::%s\n' "$1"
+  exit 1
+}
+
+[[ -x "${TOOL_COMMAND:-}" ]] || fail "The installed CLI command is unavailable."
+[[ -n "${RUNNER_TEMP:-}" ]] || fail "RUNNER_TEMP is not available."
+[[ -n "${GITHUB_OUTPUT:-}" ]] || fail "GITHUB_OUTPUT is not available."
+for required_name in ACTION_PATH ANALYSIS_RELATIVE_PATH OUTPUT_RELATIVE_PATH WORKSPACE; do
+  [[ -n "${!required_name:-}" ]] || fail "$required_name is not available."
+done
+
+# Analyze an isolated copy because MSBuildWorkspace can create bin/obj content
+# even when standard MSBuild output properties are redirected. GNU tar preserves
+# paths and symlinks without evaluating repository-controlled text as commands.
+analysis_temp="$(mktemp -d "$RUNNER_TEMP/complexity-analysis-build.XXXXXX")" ||
+  fail "Unable to create isolated analysis storage."
+analysis_workspace="$analysis_temp/workspace"
+mkdir -p -- "$analysis_workspace" || fail "Unable to create the isolated workspace."
+command -v tar >/dev/null 2>&1 || fail "GNU tar is required on the runner."
+tar --create --file - \
+  --directory "$WORKSPACE" \
+  --exclude='./.git' \
+  --exclude="./$OUTPUT_RELATIVE_PATH" \
+  . | tar --extract --file - --directory "$analysis_workspace" ||
+  fail "Unable to create an isolated copy of the workspace."
+isolated_analysis_path="$analysis_workspace/$ANALYSIS_RELATIVE_PATH"
+[[ -f "$isolated_analysis_path" ]] || fail "The analysis entry point was not copied into isolated storage."
+
+export BaseIntermediateOutputPath="$analysis_temp/intermediate/\$(MSBuildProjectName)/"
+export MSBuildProjectExtensionsPath="$analysis_temp/intermediate/\$(MSBuildProjectName)/"
+export BaseOutputPath="$analysis_temp/output/\$(MSBuildProjectName)/"
+export NUGET_PACKAGES="$analysis_temp/packages"
+
+common_arguments=()
 
 if [[ "$INCLUDE_GENERATED" == "true" ]]; then
   common_arguments+=(--include-generated)
@@ -33,14 +66,17 @@ rm -f -- "$REPORT_PATH" "$SARIF_PATH"
 run_cli() {
   local format="$1"
   local output_path="$2"
-  local arguments=("${common_arguments[@]}" --format "$format" --output "$output_path")
-  "$tool_command" "${arguments[@]}"
+  local arguments=(analyze "$isolated_analysis_path" "${common_arguments[@]}" --format "$format" --output "$output_path")
+  (
+    cd "$analysis_workspace"
+    "$TOOL_COMMAND" "${arguments[@]}"
+  )
 }
 
 validate_report() {
   local format="$1"
   local candidate_path="$2"
-  python3 "$(dirname "$0")/validate-report.py" "$format" "$candidate_path"
+  python3 "$ACTION_PATH/scripts/validate-report.py" "$format" "$candidate_path"
 }
 
 printf 'Running Complexity Analysis JSON report...\n'

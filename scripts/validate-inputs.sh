@@ -45,6 +45,7 @@ is_within_workspace() {
   fail "Unsupported Linux distribution '${ID:-unknown}'. This version supports ubuntu-latest only."
 
 [[ -n "${GITHUB_WORKSPACE:-}" ]] || fail "GITHUB_WORKSPACE is not available."
+[[ -n "${GITHUB_OUTPUT:-}" ]] || fail "GITHUB_OUTPUT is not available."
 workspace="$(realpath -e -- "$GITHUB_WORKSPACE")" || fail "GITHUB_WORKSPACE does not exist."
 
 for value_name in INPUT_PATH INPUT_TOOL_VERSION INPUT_OUTPUT_DIRECTORY; do
@@ -53,7 +54,7 @@ for value_name in INPUT_PATH INPUT_TOOL_VERSION INPUT_OUTPUT_DIRECTORY; do
   contains_line_break "$value" && fail "${value_name#INPUT_} must not contain line breaks."
 done
 
-semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 [[ "$INPUT_TOOL_VERSION" =~ $semver_pattern ]] ||
   fail "tool-version must be an exact semantic version such as 1.0.0."
 
@@ -83,6 +84,24 @@ for value_name in "${threshold_names[@]}"; do
   fi
 done
 
+case "$INPUT_MAX_COMPLEXITY" in
+  ""|constant|log_n|linear|n|n_log_n|quadratic|n2|cubic|n3|exponential|factorial) ;;
+  *) fail "max-complexity is not a supported Big-O value." ;;
+esac
+
+positive_integer_pattern='^[1-9][0-9]*$'
+non_negative_integer_pattern='^(0|[1-9][0-9]*)$'
+for value_name in INPUT_MAX_CYCLOMATIC_COMPLEXITY INPUT_MAX_METHOD_NLOC; do
+  value="${!value_name:-}"
+  [[ -z "$value" || "$value" =~ $positive_integer_pattern ]] ||
+    fail "${value_name#INPUT_} must be a positive integer."
+done
+for value_name in INPUT_MAX_COGNITIVE_COMPLEXITY INPUT_MAX_NESTING_DEPTH INPUT_MAX_DUPLICATE_RATE; do
+  value="${!value_name:-}"
+  [[ -z "$value" || "$value" =~ $non_negative_integer_pattern ]] ||
+    fail "${value_name#INPUT_} must be a non-negative integer."
+done
+
 input_candidate="$(resolve_from_workspace "$INPUT_PATH")"
 analysis_path="$(realpath -e -- "$input_candidate" 2>/dev/null)" ||
   fail "The provided path does not exist."
@@ -100,6 +119,8 @@ output_directory="$(realpath -m -- "$output_candidate")" ||
 is_within_workspace "$output_directory" || fail "output-directory must resolve within GITHUB_WORKSPACE."
 [[ "$output_directory" != "$workspace" ]] ||
   fail "output-directory must not be the workspace root."
+[[ "$output_directory" != "$workspace/.git" && "$output_directory" != "$workspace/.git/"* ]] ||
+  fail "output-directory must not be inside the repository's .git directory."
 [[ ! -e "$output_directory" || -d "$output_directory" ]] ||
   fail "The provided output-directory is not a directory."
 
@@ -111,9 +132,13 @@ is_within_workspace "$output_directory" ||
 
 report_path="$output_directory/complexity-analysis-report.json"
 sarif_path="$output_directory/complexity-analysis-report.sarif"
+analysis_relative_path="${analysis_path#"$workspace/"}"
+output_relative_path="${output_directory#"$workspace/"}"
 
 {
   printf 'analysis-path=%s\n' "$analysis_path"
+  printf 'analysis-relative-path=%s\n' "$analysis_relative_path"
+  printf 'output-relative-path=%s\n' "$output_relative_path"
   printf 'report-path=%s\n' "$report_path"
   printf 'sarif-path=%s\n' "$sarif_path"
   printf 'tool-version=%s\n' "$INPUT_TOOL_VERSION"

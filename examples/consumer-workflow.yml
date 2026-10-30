@@ -11,10 +11,11 @@ jobs:
       # Required only when upload-sarif is true.
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
-      # Future release reference: v1 does not exist until the first release.
-      - uses: rodri-oliveira-dev/complexity-analysis-action@v1
+      # Replace the zero SHA with a reviewed commit. No release tag exists yet.
+      - uses: rodri-oliveira-dev/complexity-analysis-action@0000000000000000000000000000000000000000
         with:
           path: MySolution.slnx
           tool-version: 1.0.0

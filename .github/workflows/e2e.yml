@@ -1,0 +1,156 @@
+name: End-to-end
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  published-cli-success:
+    name: Published CLI / ${{ matrix.entry-kind }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - entry-kind: csproj
+            entry-path: tests/fixtures/Sample Project/Sample Project.csproj
+            duplicates: "true"
+          - entry-kind: sln
+            entry-path: tests/fixtures/Sample Project/Sample Project.sln
+            duplicates: "false"
+          - entry-kind: slnx
+            entry-path: tests/fixtures/Sample Project/Sample Project.slnx
+            duplicates: "false"
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Consume the local Action
+        id: complexity
+        uses: ./
+        with:
+          path: ${{ matrix.entry-path }}
+          tool-version: 1.0.0
+          output-directory: artifacts/${{ matrix.entry-kind }} report
+          detect-duplicates: ${{ matrix.duplicates }}
+      - name: Assert reports and outputs
+        shell: bash
+        env:
+          REPORT_PATH: ${{ steps.complexity.outputs.report-path }}
+          SARIF_PATH: ${{ steps.complexity.outputs.sarif-path }}
+          ANALYSIS_STATUS: ${{ steps.complexity.outputs.analysis-status }}
+          QUALITY_GATE_STATUS: ${{ steps.complexity.outputs.quality-gate-status }}
+          TOOL_VERSION: ${{ steps.complexity.outputs.tool-version }}
+        run: |
+          test -s "$REPORT_PATH"
+          test -s "$SARIF_PATH"
+          test "$ANALYSIS_STATUS" = success
+          test "$QUALITY_GATE_STATUS" = not-configured
+          test "$TOOL_VERSION" = 1.0.0
+          python3 scripts/validate-report.py json "$REPORT_PATH"
+          python3 scripts/validate-report.py sarif "$SARIF_PATH"
+          test -z "$(find tests -type d \( -name obj -o -name bin \) -print -quit)"
+
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Run passing quality gates
+        id: passing
+        uses: ./
+        with:
+          path: tests/fixtures/Sample Project/Sample Project.slnx
+          tool-version: 1.0.0
+          output-directory: artifacts/passing-gates
+          max-complexity: factorial
+          max-cyclomatic-complexity: "100"
+          max-cognitive-complexity: "100"
+          max-nesting-depth: "100"
+          max-method-nloc: "1000"
+          max-duplicate-rate: "100"
+      - name: Assert passing gates
+        shell: bash
+        env:
+          STATUS: ${{ steps.passing.outputs.quality-gate-status }}
+        run: test "$STATUS" = passed
+
+      - name: Run expected blocking gate failure
+        id: blocking
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/Sample Project/Sample Project.csproj
+          tool-version: 1.0.0
+          output-directory: artifacts/blocking-gate
+          max-cyclomatic-complexity: "1"
+      - name: Assert expected blocking failure and retained reports
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.blocking.outcome }}
+          REPORT_PATH: ${{ steps.blocking.outputs.report-path }}
+          SARIF_PATH: ${{ steps.blocking.outputs.sarif-path }}
+          STATUS: ${{ steps.blocking.outputs.quality-gate-status }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$STATUS" = failed
+          test -s "$REPORT_PATH"
+          test -s "$SARIF_PATH"
+
+      - name: Run non-blocking gate failure
+        id: nonblocking
+        uses: ./
+        with:
+          path: tests/fixtures/Sample Project/Sample Project.csproj
+          tool-version: 1.0.0
+          output-directory: artifacts/nonblocking-gate
+          max-cyclomatic-complexity: "1"
+          fail-on-quality-gate: "false"
+      - name: Assert non-blocking gate result
+        shell: bash
+        env:
+          STATUS: ${{ steps.nonblocking.outputs.quality-gate-status }}
+          ANALYSIS_STATUS: ${{ steps.nonblocking.outputs.analysis-status }}
+        run: |
+          test "$STATUS" = failed
+          test "$ANALYSIS_STATUS" = success
+
+  expected-errors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Reject invalid project path
+        id: invalid-path
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/does-not-exist.csproj
+          tool-version: 1.0.0
+      - name: Assert invalid path failure
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.invalid-path.outcome }}
+        run: test "$OUTCOME" = failure
+
+      - name: Reject unavailable published package version
+        id: install-failure
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/Sample Project/Sample Project.csproj
+          tool-version: 999.999.999
+      - name: Assert installation failure
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.install-failure.outcome }}
+        run: test "$OUTCOME" = failure

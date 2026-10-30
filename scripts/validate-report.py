@@ -31,11 +31,26 @@ def validate_json_report(document: object) -> None:
     for name, expected_type in required.items():
         if not isinstance(document.get(name), expected_type):
             fail(f"The JSON report is missing a valid '{name}' property.")
+    if not document["SchemaVersion"]:
+        fail("The JSON report has an empty SchemaVersion.")
+    if not document["EntryPoint"]:
+        fail("The JSON report has an empty EntryPoint.")
+    for project in document["Projects"]:
+        if not isinstance(project, dict):
+            fail("The JSON report contains an invalid project.")
+        if not isinstance(project.get("Name"), str) or not project["Name"]:
+            fail("A JSON report project is missing its Name.")
+        if not isinstance(project.get("Path"), str) or not project["Path"]:
+            fail("A JSON report project is missing its Path.")
+        if not isinstance(project.get("Files"), list):
+            fail("A JSON report project is missing its Files array.")
     for gate in document["QualityGates"]:
         if not isinstance(gate, dict) or not all(
             key in gate for key in ("Metric", "Subject", "Threshold", "Actual", "Passed")
         ):
             fail("The JSON report contains an invalid quality-gate result.")
+        if not isinstance(gate["Passed"], bool):
+            fail("A JSON quality-gate result has a non-boolean Passed value.")
 
 
 def artifact_path(uri: str) -> PurePosixPath:
@@ -68,7 +83,12 @@ def validate_sarif(document: object, workspace: Path | None, code_scanning: bool
         for result in results:
             if not isinstance(result, dict) or not result.get("ruleId"):
                 fail("The SARIF report contains a result without a ruleId.")
-            for location in result.get("locations", []):
+            locations = result.get("locations", [])
+            if not isinstance(locations, list):
+                fail("A SARIF result has an invalid locations property.")
+            for location in locations:
+                if not isinstance(location, dict):
+                    fail("A SARIF result contains an invalid location.")
                 physical = location.get("physicalLocation", {})
                 artifact = physical.get("artifactLocation", {})
                 uri = artifact.get("uri")

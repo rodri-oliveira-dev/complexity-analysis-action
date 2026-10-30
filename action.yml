@@ -15,7 +15,7 @@ inputs:
     required: false
     default: 1.0.0
   output-directory:
-    description: Directory within the workspace where the JSON report will be written.
+    description: Directory within the workspace where JSON and SARIF reports will be written.
     required: false
     default: complexity-analysis-reports
   include-generated:
@@ -83,6 +83,7 @@ runs:
       id: validate
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         INPUT_PATH: ${{ inputs.path }}
         INPUT_TOOL_VERSION: ${{ inputs.tool-version }}
         INPUT_OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
@@ -96,28 +97,34 @@ runs:
         INPUT_MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         INPUT_FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
         INPUT_UPLOAD_SARIF: ${{ inputs.upload-sarif }}
-      run: '"${{ github.action_path }}/scripts/validate-inputs.sh"'
+      run: '"$ACTION_PATH/scripts/validate-inputs.sh"'
 
     - name: Set up .NET 10
-      uses: actions/setup-dotnet@v5
+      # setup-dotnet v5.0.0
+      uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: 10.0.403
 
     - name: Install Complexity Analysis CLI
       id: install
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         NUGET_CONFIG: ${{ github.action_path }}/nuget.config
         TOOL_VERSION: ${{ steps.validate.outputs.tool-version }}
-      run: '"${{ github.action_path }}/scripts/install-tool.sh"'
+      run: '"$ACTION_PATH/scripts/install-tool.sh"'
 
     - name: Run complexity analysis
       id: analyze
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         ANALYSIS_PATH: ${{ steps.validate.outputs.analysis-path }}
+        ANALYSIS_RELATIVE_PATH: ${{ steps.validate.outputs.analysis-relative-path }}
+        OUTPUT_RELATIVE_PATH: ${{ steps.validate.outputs.output-relative-path }}
         REPORT_PATH: ${{ steps.validate.outputs.report-path }}
         SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
+        WORKSPACE: ${{ github.workspace }}
         INCLUDE_GENERATED: ${{ inputs.include-generated }}
         DETECT_DUPLICATES: ${{ inputs.detect-duplicates }}
         MAX_COMPLEXITY: ${{ inputs.max-complexity }}
@@ -127,8 +134,9 @@ runs:
         MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
         MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         HAS_THRESHOLDS: ${{ steps.validate.outputs.has-thresholds }}
-        TOOL_DIRECTORY: ${{ steps.install.outputs.tool-directory }}
-      run: '"${{ github.action_path }}/scripts/run-analysis.sh"'
+        TOOL_COMMAND: ${{ steps.install.outputs.tool-command }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      run: '"$ACTION_PATH/scripts/run-analysis.sh"'
 
     - name: Validate SARIF for Code Scanning
       id: validate-sarif
@@ -145,7 +153,8 @@ runs:
       id: upload-sarif
       if: ${{ always() && inputs.upload-sarif == 'true' && steps.validate-sarif.outcome == 'success' }}
       continue-on-error: true
-      uses: github/codeql-action/upload-sarif@v4
+      # github/codeql-action v4.31.9
+      uses: github/codeql-action/upload-sarif@7c9a7896f03bb1f3de14c5663ed46759e27443e0
       with:
         sarif_file: ${{ steps.validate.outputs.sarif-path }}
         checkout_path: ${{ github.workspace }}
@@ -158,9 +167,10 @@ runs:
         echo "::error title=Complexity Analysis SARIF upload failed::GitHub Code Scanning rejected the upload. Grant only 'contents: read' and 'security-events: write', and confirm Code Scanning is available for this repository. See the upload step for the server response."
 
     - name: Write Job Summary
-      if: ${{ always() && steps.validate.outcome == 'success' }}
+      if: ${{ always() && steps.analyze.outcome != 'skipped' }}
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         ANALYSIS_PATH: ${{ steps.validate.outputs.analysis-path }}
         REPORT_PATH: ${{ steps.validate.outputs.report-path }}
         SARIF_PATH: ${{ steps.validate.outputs.sarif-path }}
@@ -179,15 +189,16 @@ runs:
         MAX_METHOD_NLOC: ${{ inputs.max-method-nloc }}
         MAX_DUPLICATE_RATE: ${{ inputs.max-duplicate-rate }}
         WORKSPACE: ${{ github.workspace }}
-      run: 'python3 "${{ github.action_path }}/scripts/write-summary.py"'
+      run: 'python3 "$ACTION_PATH/scripts/write-summary.py"'
 
     - name: Apply analysis result
-      if: ${{ always() && steps.validate.outcome == 'success' }}
+      if: ${{ always() && steps.analyze.outcome != 'skipped' }}
       shell: bash
       env:
+        ACTION_PATH: ${{ github.action_path }}
         ANALYSIS_EXIT_CODE: ${{ steps.analyze.outputs.analysis-exit-code }}
         FAIL_ON_QUALITY_GATE: ${{ inputs.fail-on-quality-gate }}
         UPLOAD_SARIF: ${{ inputs.upload-sarif }}
         SARIF_VALIDATION_OUTCOME: ${{ steps.validate-sarif.outcome }}
         SARIF_UPLOAD_OUTCOME: ${{ steps.upload-sarif.outcome }}
-      run: '"${{ github.action_path }}/scripts/apply-result.sh"'
+      run: '"$ACTION_PATH/scripts/apply-result.sh"'
